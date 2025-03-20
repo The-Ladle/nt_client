@@ -308,24 +308,25 @@ impl AnnouncedTopics {
 /// # tokio_test::block_on(async {
 /// let client = Client::new(Default::default());
 ///
-/// let sub_topic = client.topic("/Root/");
-/// tokio::spawn(async move {
-///     let mut sub = sub_topic.subscribe(SubscriptionOptions {
-///         topics_only: Some(true),
-///         prefix: Some(true),
-///         ..Default::default()
-///     }).await;
-///
-///     while let Ok(ReceivedMessage::Announced(topic)) = sub.recv().await {
-///         let path: TopicPath = topic.name().into();
-///
-///         // do something with `path`
-///     }
-/// });
-///
-/// client.connect().await;
-///
+/// client.connect_setup(setup).await;
 /// # });
+///
+/// fn setup(client: &Client) {
+///     let sub_topic = client.topic("/Root/");
+///     tokio::spawn(async move {
+///         let mut sub = sub_topic.subscribe(SubscriptionOptions {
+///             topics_only: Some(true),
+///             prefix: Some(true),
+///             ..Default::default()
+///         }).await;
+///
+///         while let Ok(ReceivedMessage::Announced(topic)) = sub.recv().await {
+///             let path: TopicPath = topic.name().into();
+///
+///             // do something with `path`
+///         }
+///     });
+/// }
 /// ```
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TopicPath {

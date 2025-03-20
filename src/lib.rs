@@ -17,26 +17,28 @@
 //! let options = NewClientOptions { addr: NTAddr::Local, ..Default::default() };
 //! let client = Client::new(options);
 //!
-//! let thing_topic = client.topic("/thing");
-//! tokio::spawn(async move {
-//!     let mut sub = thing_topic.subscribe(Default::default()).await;
-//!
-//!     loop {
-//!         match sub.recv().await {
-//!             Ok(ReceivedMessage::Updated((_topic, value))) => {
-//!                 println!("topic updated: '{value}'");
-//!             },
-//!             Ok(_) => {},
-//!             Err(err) => {
-//!                 eprintln!("{err}");
-//!                 break;
-//!             },
-//!         }
-//!     }
-//! });
-//! 
-//! client.connect().await.unwrap();
+//! client.connect_setup(setup).await.unwrap();
 //! # });
+//!
+//! fn setup(client: &Client) {
+//!     let thing_topic = client.topic("/thing");
+//!     tokio::spawn(async move {
+//!         let mut sub = thing_topic.subscribe(Default::default()).await;
+//!
+//!         loop {
+//!             match sub.recv().await {
+//!                 Ok(ReceivedMessage::Updated((_topic, value))) => {
+//!                     println!("topic updated: '{value}'");
+//!                 },
+//!                 Ok(_) => {},
+//!                 Err(err) => {
+//!                     eprintln!("{err}");
+//!                     break;
+//!                 },
+//!             }
+//!         }
+//!     });
+//! }
 //! ```
 //! 
 //! [NetworkTables]: https://github.com/wpilibsuite/allwpilib/blob/main/ntcore/doc/networktables4.adoc
@@ -144,16 +146,16 @@ impl Client {
     /// # Errors
     /// Returns an error if something goes wrong when connected to the server.
     pub async fn connect(self) -> Result<(), ConnectError> {
-        self.connect_on_ready(|_| {}).await
+        self.connect_setup(|_| {}).await
     }
 
-    /// Connects the the `NetworkTables` server, calling a callback once the connection is made.
+    /// Connects the the `NetworkTables` server, calling a setup function once the connection is made.
     ///
     /// This future will only complete when the client has disconnected from the server.
     ///
     /// # Errors
     /// Returns an error if something goes wrong when connected to the server.
-    pub async fn connect_on_ready<F>(self, on_ready: F) -> Result<(), ConnectError>
+    pub async fn connect_setup<F>(self, setup: F) -> Result<(), ConnectError>
     where F: FnOnce(&Self)
     {
         let (ws_stream, _) = if let Some(secure_port) = self.options.secure_port {
@@ -166,7 +168,7 @@ impl Client {
             self.try_connect("ws", self.options.unsecure_port).await?
         };
 
-        on_ready(&self);
+        setup(&self);
 
         let (write, read) = ws_stream.split();
 

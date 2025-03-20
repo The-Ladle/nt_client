@@ -9,7 +9,7 @@ use serde_json::json;
 async fn main() {
     let client = Client::new(Default::default());
 
-    client.connect_on_ready(setup).await.unwrap()
+    client.connect_setup(setup).await.unwrap()
 }
 
 fn setup(client: &Client) {

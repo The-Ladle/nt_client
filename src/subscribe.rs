@@ -10,32 +10,34 @@
 //! # tokio_test::block_on(async {
 //! let client = Client::new(Default::default());
 //!
-//! // prints updates to the `/counter` topic to the stdout
-//! let counter_topic = client.topic("/counter");
-//! tokio::spawn(async move {
-//!     // subscribes to the `/counter`
-//!     let mut subscriber = counter_topic.subscribe(Default::default()).await;
-//!
-//!     loop {
-//!         match subscriber.recv().await {
-//!             Ok(ReceivedMessage::Updated((_topic, value))) => {
-//!                 // get the updated value as an `i32`
-//!                 let number = i32::from_value(&value).unwrap();
-//!                 println!("counter updated to {number}");
-//!             },
-//!             Ok(ReceivedMessage::Announced(topic)) => println!("announced topic: {topic:?}"),
-//!             Ok(ReceivedMessage::Unannounced { name, .. }) => println!("unannounced topic: {name}"),
-//!             Ok(ReceivedMessage::UpdateProperties(topic)) => println!("topic {} had its properties updated: {:?}", topic.name(), topic.properties()),
-//!             Err(err) => {
-//!                 eprintln!("got error: {err:?}");
-//!                 break;
-//!             },
-//!         }
-//!     }
-//! });
-//!
-//! client.connect().await.unwrap();
+//! client.connect_setup(setup).await.unwrap();
 //! # });
+//!
+//! fn setup(client: &Client) {
+//!     // prints updates to the `/counter` topic to the stdout
+//!     let counter_topic = client.topic("/counter");
+//!     tokio::spawn(async move {
+//!         // subscribes to the `/counter`
+//!         let mut subscriber = counter_topic.subscribe(Default::default()).await;
+//!
+//!         loop {
+//!             match subscriber.recv().await {
+//!                 Ok(ReceivedMessage::Updated((_topic, value))) => {
+//!                     // get the updated value as an `i32`
+//!                     let number = i32::from_value(&value).unwrap();
+//!                     println!("counter updated to {number}");
+//!                 },
+//!                 Ok(ReceivedMessage::Announced(topic)) => println!("announced topic: {topic:?}"),
+//!                 Ok(ReceivedMessage::Unannounced { name, .. }) => println!("unannounced topic: {name}"),
+//!                 Ok(ReceivedMessage::UpdateProperties(topic)) => println!("topic {} had its properties updated: {:?}", topic.name(), topic.properties()),
+//!                 Err(err) => {
+//!                     eprintln!("got error: {err:?}");
+//!                     break;
+//!                 },
+//!             }
+//!         }
+//!     });
+//! }
 
 use std::{collections::{HashMap, HashSet}, fmt::Debug, sync::Arc};
 

@@ -11,25 +11,27 @@
 //! # tokio_test::block_on(async {
 //! let client = Client::new(Default::default());
 //!
-//! // increments the `/counter` topic every 5 seconds
-//! let counter_topic = client.topic("/counter");
-//! tokio::spawn(async move {
-//!     const INCREMENT_INTERVAL: Duration = Duration::from_secs(5);
-//!     
-//!     let mut publisher = counter_topic.publish::<u32>(Default::default()).await.unwrap();
-//!     let mut interval = tokio::time::interval(INCREMENT_INTERVAL);
-//!     let mut counter = 0;
-//!     
-//!     loop {
-//!         interval.tick().await;
-//!
-//!         publisher.set(counter).await.expect("connection is still alive");
-//!         counter += 1;
-//!     }
-//! });
-//!
-//! client.connect().await.unwrap();
+//! client.connect_setup(setup).await.unwrap();
 //! # });
+//!
+//! fn setup(client: &Client) {
+//!     // increments the `/counter` topic every 5 seconds
+//!     let counter_topic = client.topic("/counter");
+//!     tokio::spawn(async move {
+//!         const INCREMENT_INTERVAL: Duration = Duration::from_secs(5);
+//!     
+//!         let mut publisher = counter_topic.publish::<u32>(Default::default()).await.unwrap();
+//!         let mut interval = tokio::time::interval(INCREMENT_INTERVAL);
+//!         let mut counter = 0;
+//!     
+//!         loop {
+//!             interval.tick().await;
+//!
+//!             publisher.set(counter).await.expect("connection is still alive");
+//!             counter += 1;
+//!         }
+//!     });
+//! }
 
 use std::{collections::HashMap, fmt::Debug, marker::PhantomData, sync::Arc, time::Duration};
 
@@ -138,26 +140,28 @@ impl<T: NetworkTableData> Publisher<T> {
     /// # tokio_test::block_on(async {
     /// let client = Client::new(Default::default());
     ///
-    /// let topic = client.topic("mytopic");
-    /// tokio::spawn(async move {
-    ///     let mut sub = topic.publish::<String>(Default::default()).await.unwrap();
+    /// client.connect_setup(setup).await.unwrap();
+    /// # });
     ///
-    ///     // update properties after 5 seconds
-    ///     tokio::time::sleep(Duration::from_secs(5)).await;
+    /// fn setup(client: &Client) {
+    ///     let topic = client.topic("mytopic");
+    ///     tokio::spawn(async move {
+    ///         let mut sub = topic.publish::<String>(Default::default()).await.unwrap();
     ///
-    ///     // Props:
-    ///     // - set `retained` to true
-    ///     // - delete `arbitrary property`
-    ///     // everything else stays unchanged
-    ///     let props = UpdateProps::new()
-    ///         .set_retained(true)
-    ///         .delete("arbitrary property".to_owned());
+    ///         // update properties after 5 seconds
+    ///         tokio::time::sleep(Duration::from_secs(5)).await;
     ///
-    ///     sub.update_props(props).await.unwrap();
-    /// });
+    ///         // Props:
+    ///         // - set `retained` to true
+    ///         // - delete `arbitrary property`
+    ///         // everything else stays unchanged
+    ///         let props = UpdateProps::new()
+    ///             .set_retained(true)
+    ///             .delete("arbitrary property".to_owned());
     ///
-    /// client.connect().await.unwrap();
-    /// # })
+    ///         sub.update_props(props).await.unwrap();
+    ///     });
+    /// }
     /// ```
     pub async fn update_props(&mut self, new_props: UpdateProps) -> Result<(), broadcast::error::RecvError> {
         self.ws_sender.send(ServerboundMessage::Text(ServerboundTextData::SetProperties(SetProperties {
