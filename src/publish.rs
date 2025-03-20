@@ -159,7 +159,6 @@ impl<T: NetworkTableData> Publisher<T> {
     /// client.connect().await.unwrap();
     /// # })
     /// ```
-    // TODO: probably replace with custom error
     pub async fn update_props(&mut self, new_props: UpdateProps) -> Result<(), broadcast::error::RecvError> {
         self.ws_sender.send(ServerboundMessage::Text(ServerboundTextData::SetProperties(SetProperties {
             name: self.topic.clone(),
@@ -202,7 +201,6 @@ impl<T: NetworkTableData> Drop for Publisher<T> {
 pub enum NewPublisherError {
     /// An error occurred when receiving data from the connection.
     #[error(transparent)]
-    // TODO: probably replace with custom error
     Recv(#[from] broadcast::error::RecvError),
     /// The server and client have mismatched data types.
     ///

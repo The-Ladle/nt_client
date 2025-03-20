@@ -244,7 +244,6 @@ impl Client {
                     let time = time.read().await;
                     time.client_time()
                 };
-                // TODO: handle client time overflow
                 let data = BinaryData::new::<u64>(
                     -1,
                     Duration::ZERO,

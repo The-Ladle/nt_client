@@ -138,7 +138,6 @@ impl Subscriber {
     ///
     /// # Errors
     /// Returns an error if something goes wrong when receiving messages from the client.
-    // TODO: probably replace with custom error type
     pub async fn recv(&mut self) -> Result<ReceivedMessage, broadcast::error::RecvError> {
         recv_until_async(&mut self.ws_recv, |data| {
             let topic_ids = self.topic_ids.clone();

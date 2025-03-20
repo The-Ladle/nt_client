@@ -89,7 +89,7 @@ pub(crate) struct Unannounce {
 #[derive(Deserialize, Debug)]
 pub(crate) struct PropertiesData {
     pub name: String,
-    // BUG: this doesn't seem to ever exist
+    // NOTE: this doesn't seem to ever exist
     #[expect(dead_code)]
     pub ack: Option<bool>,
     pub update: HashMap<String, Option<serde_json::Value>>,

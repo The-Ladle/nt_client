@@ -63,7 +63,6 @@ pub enum UpdateTimeError {
     ConnectionClosed(#[from] ConnectionClosedError),
 
     /// Client time has overflowed as a result of the client being alive for too long.
-    // TODO: handle time overflow
     #[error("client time has overflowed")]
     TimeOverflow,
 }
