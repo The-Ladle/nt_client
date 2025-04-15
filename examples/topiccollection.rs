@@ -6,6 +6,10 @@ use nt_client::{subscribe::ReceivedMessage, Client};
 async fn main() {
     let client = Client::new(Default::default());
 
+    client.connect_setup(setup).await.unwrap();
+}
+
+fn setup(client: &Client) {
     let topic_names = vec!["/topic1".to_owned(), "/topic2".to_owned(), "topic3".to_owned()];
     let topics = client.topics(topic_names.clone());
 
@@ -28,7 +32,5 @@ async fn main() {
             }
         }
     });
-
-    client.connect().await.unwrap();
 }
 
