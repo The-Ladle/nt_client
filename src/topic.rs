@@ -181,7 +181,7 @@ impl From<&Announce> for AnnouncedTopic {
         Self {
             name: value.name.clone(),
             id: value.id,
-            r#type: value.r#type.clone(),
+            r#type: value.r#type,
             properties: value.properties.clone(),
             last_updated: None,
         }

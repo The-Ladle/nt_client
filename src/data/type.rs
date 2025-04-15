@@ -119,7 +119,7 @@ macro_rules! transparent {
 }
 
 /// A data type understood by a `NetworkTables` server.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum DataType {
     /// [`bool`] data type.
