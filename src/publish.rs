@@ -1,4 +1,4 @@
-//! Publisher portion of the `NetworkTables` spec.
+//! Topic publishers.
 //!
 //! Publishers are used to set new values for topics that can be seen by subscribers.
 //!

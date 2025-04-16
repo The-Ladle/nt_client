@@ -1,4 +1,4 @@
-//! Subscriber portion of the `NetworkTables` spec.
+//! Topic subscribers.
 //!
 //! Subscribers receive data value updates to a topic.
 //!
@@ -199,6 +199,7 @@ impl Drop for Subscriber {
 }
 
 /// Messages that can received from a subscriber.
+// TODO: no clones on AnnouncedTopic
 #[derive(Debug, Clone, PartialEq)]
 pub enum ReceivedMessage {
     /// A topic that matches the subscription options and subscribed topics was announced.
