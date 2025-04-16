@@ -148,13 +148,13 @@ impl Topic {
 ///
 /// This differs from a [`Topic`], as that is a **client created topic**, while this is a
 /// **server created topic**.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AnnouncedTopic {
     name: String,
     id: i32,
     r#type: DataType,
     pub(crate) properties: Properties,
-    last_updated: Option<Duration>,
+    value: Option<(rmpv::Value, Duration)>,
 }
 
 impl AnnouncedTopic {
@@ -180,13 +180,18 @@ impl AnnouncedTopic {
         &self.properties
     }
 
-    /// Returns when this topic was last updated as a duration of time since the server started.
-    pub fn last_updated(&self) -> Option<&Duration> {
-        self.last_updated.as_ref()
+    /// Returns the current value of this topic.
+    pub fn value(&self) -> Option<&rmpv::Value> {
+        self.value.as_ref().map(|value| &value.0)
     }
 
-    pub(crate) fn update(&mut self, when: Duration) {
-        self.last_updated = Some(when);
+    /// Returns when this topic was last updated as a duration of time since the server started.
+    pub fn last_updated(&self) -> Option<&Duration> {
+        self.value.as_ref().map(|value| &value.1)
+    }
+
+    pub(crate) fn update(&mut self, value: rmpv::Value, when: Duration) {
+        self.value = Some((value, when));
     }
 
     /// Returns whether the given topic names and subscription options match this topic.
@@ -203,13 +208,13 @@ impl From<&Announce> for AnnouncedTopic {
             id: value.id,
             r#type: value.r#type,
             properties: value.properties.clone(),
-            last_updated: None,
+            value: None,
         }
     }
 }
 
 /// Represents a list of all server-announced topics.
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct AnnouncedTopics {
     topics: HashMap<i32, AnnouncedTopic>,
     name_to_id: HashMap<String, i32>,
