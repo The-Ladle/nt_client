@@ -6,7 +6,7 @@ use std::{collections::{HashMap, VecDeque}, fmt::{Debug, Display}, sync::Arc, ti
 
 use tokio::sync::RwLock;
 
-use crate::{data::{r#type::{DataType, NetworkTableData}, Announce, Properties, SubscriptionOptions, Unannounce}, publish::{NewPublisherError, Publisher}, subscribe::Subscriber, NTClientSender, NTServerSender, NetworkTablesTime};
+use crate::{data::{r#type::{DataType, NetworkTableData}, Announce, Properties, SubscriptionOptions, Unannounce}, publish::{GenericPublisher, NewPublisherError, Publisher}, subscribe::Subscriber, NTClientSender, NTServerSender, NetworkTablesTime};
 
 pub mod collection;
 
@@ -99,10 +99,11 @@ impl Topic {
 
     /// Publishes to this topic with the data type `T`.
     ///
+    /// For a generic-free version, see [`generic_publish`][`Self::generic_publish`].
+    ///
     /// # Note
     /// This method requires the [`Client`] websocket connection to already be made. Calling this
-    /// method wihout already connecting the [`Client`] will cause it to hang forever. Solving this
-    /// requires running this method in a separate thread, through something like [`tokio::spawn`].
+    /// method wihout already connecting the [`Client`] will cause it to hang forever.
     ///
     /// # Errors
     /// Returns an error if a publisher could not be made to the server.
@@ -110,6 +111,25 @@ impl Topic {
     /// [`Client`]: crate::Client
     pub async fn publish<T: NetworkTableData>(&self, properties: Properties) -> Result<Publisher<T>, NewPublisherError> {
         Publisher::new(self.name.clone(), properties, self.time.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
+    }
+
+    /// Publishes to this topic with some data type.
+    ///
+    /// This behaves different from [`publish`][`Self::publish`], as that has a generic type and
+    /// guarantees through type-safety that the client is publishing values that have the same type
+    /// the server does for that topic. Extra care must be taken to ensure no type mismatches
+    /// occur.
+    ///
+    /// # Note
+    /// This method requires the [`Client`] websocket connection to already be made. Calling this
+    /// method wihout already connecting the [`Client`] will cause it to hang forever.
+    ///
+    /// # Errors
+    /// Returns an error if a publisher could not be made to the server.
+    ///
+    /// [`Client`]: crate::Client
+    pub async fn generic_publish(&self, r#type: DataType, properties: Properties) -> Result<GenericPublisher, NewPublisherError> {
+        GenericPublisher::new(self.name.clone(), properties, r#type, self.time.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
     }
 
     /// Subscribes to this topic.

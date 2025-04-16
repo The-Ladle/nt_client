@@ -4,6 +4,7 @@
 //!
 //! # Examples
 //!
+//! **Using a [`Publisher`]:**
 //! ```no_run
 //! use std::time::Duration;
 //! use nt_client::Client;
@@ -32,6 +33,38 @@
 //!         }
 //!     });
 //! }
+//! ```
+//!
+//! **Using a [`GenericPublisher`]:**
+//! ```no_run
+//! use std::time::Duration;
+//! use nt_client::{data::r#type::DataType, Client};
+//!
+//! # tokio_test::block_on(async {
+//! let client = Client::new(Default::default());
+//!
+//! client.connect_setup(setup).await.unwrap();
+//! # });
+//!
+//! fn setup(client: &Client) {
+//!     // increments the `/counter` topic every 5 seconds
+//!     let counter_topic = client.topic("/counter");
+//!     tokio::spawn(async move {
+//!         const INCREMENT_INTERVAL: Duration = Duration::from_secs(5);
+//!     
+//!         let mut publisher = counter_topic.generic_publish(DataType::Int, Default::default()).await.unwrap();
+//!         let mut interval = tokio::time::interval(INCREMENT_INTERVAL);
+//!         let mut counter = 0;
+//!     
+//!         loop {
+//!             interval.tick().await;
+//!
+//!             publisher.set(counter).await.expect("connection is still alive");
+//!             counter += 1;
+//!         }
+//!     });
+//! }
+//! ```
 
 use std::{collections::HashMap, fmt::Debug, marker::PhantomData, sync::Arc, time::Duration};
 
@@ -46,17 +79,13 @@ use crate::{data::{r#type::{DataType, NetworkTableData}, Announce, BinaryData, C
 /// [`Topic`]: crate::topic::Topic
 pub struct Publisher<T: NetworkTableData> {
     _phantom: PhantomData<T>,
-    topic: String,
-    id: i32,
-    time: Arc<RwLock<NetworkTablesTime>>,
-    ws_sender: NTServerSender,
-    ws_recv: NTClientReceiver,
+    inner: GenericPublisher,
 }
 
 impl<T: NetworkTableData> Debug for Publisher<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Publisher")
-            .field("id", &self.id)
+            .field("id", &self.inner.id)
             .field("type", &T::data_type())
             .finish()
     }
@@ -64,7 +93,7 @@ impl<T: NetworkTableData> Debug for Publisher<T> {
 
 impl<T: NetworkTableData> PartialEq for Publisher<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
+        self.inner == other.inner
     }
 }
 
@@ -76,27 +105,22 @@ impl<T: NetworkTableData> Publisher<T> {
         properties: Properties,
         time: Arc<RwLock<NetworkTablesTime>>,
         ws_sender: NTServerSender,
-        mut ws_recv: NTClientReceiver,
+        ws_recv: NTClientReceiver,
     ) -> Result<Self, NewPublisherError> {
-        let id = rand::random();
-        let pub_message = ServerboundTextData::Publish(Publish { name, pubuid: id, r#type: T::data_type(), properties });
-        ws_sender.send(ServerboundMessage::Text(pub_message).into()).map_err(|_| broadcast::error::RecvError::Closed)?;
+        Ok(Self {
+            _phantom: PhantomData,
+            inner: GenericPublisher::new(name, properties, T::data_type(), time, ws_sender, ws_recv).await?,
+        })
+    }
 
-        let (name, r#type, id) = {
-            recv_until(&mut ws_recv, |data| {
-                if let ClientboundData::Text(ClientboundTextData::Announce(Announce { ref name, ref r#type, pubuid: Some(pubuid), .. })) = *data {
-                    // TODO: cached property
+    /// Returns the id of this publisher.
+    pub fn id(&self) -> i32 {
+        self.inner.id()
+    }
 
-                    Some((name.clone(), r#type.clone(), pubuid))
-                } else {
-                    None
-                }
-            }).await
-        }?;
-        if T::data_type() != r#type { return Err(NewPublisherError::MismatchedType { server: r#type, client: T::data_type() }); };
-
-        debug!("[pub {id}] publishing to topic `{name}`");
-        Ok(Self { _phantom: PhantomData, topic: name, id, time, ws_sender, ws_recv })
+    /// Returns the data type of the topic this publisher is publishing to.
+    pub fn data_type(&self) -> DataType {
+        self.inner.r#type
     }
 
     /// Publish a new value to the [`Topic`].
@@ -106,8 +130,11 @@ impl<T: NetworkTableData> Publisher<T> {
     ///
     /// [`Topic`]: crate::topic::Topic
     pub async fn set(&self, value: T) -> Result<(), ConnectionClosedError> {
-        let time = self.time.read().await;
-        self.set_time(value, time.server_time()).await
+        match self.inner.set(value).await {
+            Ok(()) => Ok(()),
+            Err(GenericPublishError::ConnectionClosed(_)) => Err(ConnectionClosedError),
+            Err(GenericPublishError::MismatchedType { .. }) => unreachable!(),
+        }
     }
 
     /// Publishes a default value to the [`Topic`].
@@ -120,7 +147,11 @@ impl<T: NetworkTableData> Publisher<T> {
     ///
     /// [`Topic`]: crate::topic::Topic
     pub async fn set_default(&self, value: T) -> Result<(), ConnectionClosedError> {
-        self.set_time(value, Duration::ZERO).await
+        match self.inner.set_default(value).await {
+            Ok(()) => Ok(()),
+            Err(GenericPublishError::ConnectionClosed(_)) => Err(ConnectionClosedError),
+            Err(GenericPublishError::MismatchedType { .. }) => unreachable!(),
+        }
     }
 
     /// Updates the properties of the topic being subscribed to, returning a `future` that
@@ -145,7 +176,7 @@ impl<T: NetworkTableData> Publisher<T> {
     /// fn setup(client: &Client) {
     ///     let topic = client.topic("mytopic");
     ///     tokio::spawn(async move {
-    ///         let mut sub = topic.publish::<String>(Default::default()).await.unwrap();
+    ///         let mut publisher = topic.publish::<String>(Default::default()).await.unwrap();
     ///
     ///         // update properties after 5 seconds
     ///         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -158,7 +189,158 @@ impl<T: NetworkTableData> Publisher<T> {
     ///             .set_retained(true)
     ///             .delete("arbitrary property".to_owned());
     ///
-    ///         sub.update_props(props).await.unwrap();
+    ///         publisher.update_props(props).await.unwrap();
+    ///     });
+    /// }
+    /// ```
+    pub async fn update_props(&mut self, new_props: UpdateProps) -> Result<(), broadcast::error::RecvError> {
+        self.inner.update_props(new_props).await
+    }
+}
+
+/// A `NetworkTables` publisher that publishes values to a [`Topic`].
+///
+/// This behaves different from [`Publisher`], as that has a generic type and
+/// guarantees through type-safety that the client is publishing values that have the same type
+/// the server does for that topic. Extra care must be taken to ensure no type mismatches
+/// occur.
+///
+/// This will automatically get unpublished whenever this goes out of scope.
+///
+/// [`Topic`]: crate::topic::Topic
+pub struct GenericPublisher {
+    topic: String,
+    id: i32,
+    r#type: DataType,
+    time: Arc<RwLock<NetworkTablesTime>>,
+    ws_sender: NTServerSender,
+    ws_recv: NTClientReceiver,
+}
+
+impl Debug for GenericPublisher {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GenericPublisher")
+            .field("id", &self.id)
+            .field("type", &self.r#type)
+            .finish()
+    }
+}
+
+impl PartialEq for GenericPublisher {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for GenericPublisher { }
+
+impl GenericPublisher {
+    pub(super) async fn new(
+        name: String,
+        properties: Properties,
+        r#type: DataType,
+        time: Arc<RwLock<NetworkTablesTime>>,
+        ws_sender: NTServerSender,
+        mut ws_recv: NTClientReceiver,
+    ) -> Result<Self, NewPublisherError> {
+        let id = rand::random();
+        let pub_message = ServerboundTextData::Publish(Publish { name, pubuid: id, r#type, properties });
+        ws_sender.send(ServerboundMessage::Text(pub_message).into()).map_err(|_| broadcast::error::RecvError::Closed)?;
+
+        let (name, server_type, id) = {
+            recv_until(&mut ws_recv, |data| {
+                if let ClientboundData::Text(ClientboundTextData::Announce(Announce { ref name, ref r#type, pubuid: Some(pubuid), .. })) = *data {
+                    // TODO: cached property
+
+                    Some((name.clone(), *r#type, pubuid))
+                } else {
+                    None
+                }
+            }).await
+        }?;
+
+        if r#type != server_type {
+            let data = ServerboundTextData::Unpublish(Unpublish { pubuid: id });
+            // if the receiver is dropped, the ws connection is closed
+            let _ = ws_sender.send(ServerboundMessage::Text(data).into());
+            return Err(NewPublisherError::MismatchedType { server: server_type, client: r#type });
+        };
+
+        Ok(Self { topic: name, id, r#type, time, ws_sender, ws_recv })
+    }
+
+    /// Returns the id of this publisher.
+    pub fn id(&self) -> i32 {
+        self.id
+    }
+
+    /// Returns the data type of the topic this publisher is publishing to.
+    pub fn data_type(&self) -> DataType {
+        self.r#type
+    }
+
+    /// Publish a new value to the [`Topic`].
+    ///
+    /// # Errors
+    /// Returns an error if the client is disconnected or if there is a type mismatch between the
+    /// server and client.
+    ///
+    /// [`Topic`]: crate::topic::Topic
+    pub async fn set<T: NetworkTableData>(&self, value: T) -> Result<(), GenericPublishError> {
+        let time = self.time.read().await;
+        self.set_time(value, time.server_time()).await
+    }
+
+    /// Publishes a default value to the [`Topic`].
+    ///
+    /// This default value will only be seen by other clients and the server if no other value has
+    /// been published to the [`Topic`] yet.
+    ///
+    /// # Errors
+    /// Returns an error if the client is disconnected or if there is a type mismatch between the
+    /// server and client.
+    ///
+    /// [`Topic`]: crate::topic::Topic
+    pub async fn set_default<T: NetworkTableData>(&self, value: T) -> Result<(), GenericPublishError> {
+        self.set_time(value, Duration::ZERO).await
+    }
+
+    /// Updates the properties of the topic being subscribed to, returning a `future` that
+    /// completes when the server acknowledges the update.
+    ///
+    /// A [`UpdateProps`] should be used for easy creation of updated properties.
+    ///
+    /// # Errors
+    /// Returns an error if messages could not be received from the `NetworkTables` server.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use std::time::Duration;
+    /// use nt_client::{publish::UpdateProps, data::r#type::DataType, Client};
+    ///
+    /// # tokio_test::block_on(async {
+    /// let client = Client::new(Default::default());
+    ///
+    /// client.connect_setup(setup).await.unwrap();
+    /// # });
+    ///
+    /// fn setup(client: &Client) {
+    ///     let topic = client.topic("mytopic");
+    ///     tokio::spawn(async move {
+    ///         let mut publisher = topic.generic_publish(DataType::String, Default::default()).await.unwrap();
+    ///
+    ///         // update properties after 5 seconds
+    ///         tokio::time::sleep(Duration::from_secs(5)).await;
+    ///
+    ///         // Props:
+    ///         // - set `retained` to true
+    ///         // - delete `arbitrary property`
+    ///         // everything else stays unchanged
+    ///         let props = UpdateProps::new()
+    ///             .set_retained(true)
+    ///             .delete("arbitrary property".to_owned());
+    ///
+    ///         publisher.update_props(props).await.unwrap();
     ///     });
     /// }
     /// ```
@@ -181,15 +363,18 @@ impl<T: NetworkTableData> Publisher<T> {
         Ok(())
     }
 
-    async fn set_time(&self, data: T, timestamp: Duration) -> Result<(), ConnectionClosedError> {
-        let data_value = data.clone().into_value();
+    async fn set_time<T: NetworkTableData>(&self, data: T, timestamp: Duration) -> Result<(), GenericPublishError> {
+        if self.r#type != T::data_type() {
+            return Err(GenericPublishError::MismatchedType { server: self.r#type, client: T::data_type() });
+        };
+
         let binary = BinaryData::new(self.id, timestamp, data);
         self.ws_sender.send(ServerboundMessage::Binary(binary).into()).map_err(|_| ConnectionClosedError)?;
         Ok(())
     }
 }
 
-impl<T: NetworkTableData> Drop for Publisher<T> {
+impl Drop for GenericPublisher {
     fn drop(&mut self) {
         let data = ServerboundTextData::Unpublish(Unpublish { pubuid: self.id });
         // if the receiver is dropped, the ws connection is closed
@@ -214,6 +399,25 @@ pub enum NewPublisherError {
         /// The client's data type.
         client: DataType,
     },
+}
+
+/// Errors that can occur when generically publishing using a [`GenericPublisher`].
+#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
+pub enum GenericPublishError {
+    /// The server and client have mismatched data types.
+    ///
+    /// This can occur if, for example, the client publishes a [`String`] to a topic that the
+    /// server has a different data type for, like an [`i32`].
+    #[error("mismatched data types! server has {server:?}, but tried to use {client:?} instead")]
+    MismatchedType {
+        /// The server's data type.
+        server: DataType,
+        /// The client's data type.
+        client: DataType,
+    },
+    /// The `NetworkTables` connection was closed.
+    #[error(transparent)]
+    ConnectionClosed(#[from] ConnectionClosedError),
 }
 
 macro_rules! builder {
