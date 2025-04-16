@@ -93,7 +93,7 @@ impl Topic {
     }
 
     /// Returns a mutable reference to the name this topic has.
-    pub fn name_mut(&mut self) -> &mut str {
+    pub fn name_mut(&mut self) -> &mut String {
         &mut self.name
     }
 
