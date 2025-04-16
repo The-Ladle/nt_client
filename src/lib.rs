@@ -46,14 +46,14 @@
 use core::panic;
 use std::{collections::VecDeque, convert::Into, error::Error, fmt::Debug, net::Ipv4Addr, sync::Arc, time::{Duration, Instant}};
 
-use data::{BinaryData, ClientboundData, ClientboundTextData, PropertiesData, ServerboundMessage};
+use data::{BinaryData, ClientboundData, ClientboundTextData, PropertiesData, ServerboundMessage, ServerboundTextData, Subscribe, Unpublish, Unsubscribe};
 use error::{ConnectError, ConnectionClosedError, IntoAddrError, PingError, ReceiveMessageError, ReconnectError, SendMessageError, UpdateTimeError};
 use futures_util::{stream::{SplitSink, SplitStream}, Future, SinkExt, StreamExt, TryStreamExt};
 use time::ext::InstantExt;
 use tokio::{net::TcpStream, select, sync::{broadcast, mpsc, Notify, RwLock}, task::JoinHandle, time::{interval, timeout}};
 use tokio_tungstenite::{tungstenite::{self, http::{Response, Uri}, ClientRequestBuilder, Message}, MaybeTlsStream, WebSocketStream};
 use topic::{collection::TopicCollection, AnnouncedTopic, AnnouncedTopics, Topic};
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
 
 pub mod error;
 pub mod data;
@@ -275,21 +275,41 @@ impl Client {
         mut write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     ) -> JoinHandle<Result<(), SendMessageError>> {
         tokio::spawn(async move {
-            while let Ok(message) = server_recv.recv().await {
-                let packet = match &*message {
-                    ServerboundMessage::Text(json) => serde_json::to_string(&[json]).map_err(|err| err.into()).map(Message::Text),
-                    ServerboundMessage::Binary(binary) => rmp_serde::to_vec(binary).map_err(|err| err.into()).map(Message::Binary),
-                    ServerboundMessage::Ping => Ok(Message::Ping(Vec::new())),
-                };
-                match packet {
-                    Ok(packet) => {
-                        if !matches!(packet, Message::Ping(_)) { debug!("sent message: {packet:?}"); };
-                        if (write.send(packet).await).is_err() { return Err(SendMessageError::ConnectionClosed(ConnectionClosedError)); };
+            loop {
+                match server_recv.recv().await {
+                    Ok(message) => {
+                        let packet = match &*message {
+                            ServerboundMessage::Text(json) => {
+                                match json {
+                                    ServerboundTextData::Unpublish(Unpublish { pubuid }) => debug!("[pub {pubuid}] unpublished"),
+                                    ServerboundTextData::Subscribe(Subscribe { topics, subuid, options }) => {
+                                        debug!("[sub {subuid}] subscribed to {topics:?} with {options:?}");
+                                    },
+                                    ServerboundTextData::Unsubscribe(Unsubscribe { subuid }) => debug!("[sub {subuid}] unsubscribed"),
+                                    _ => {},
+                                };
+                                serde_json::to_string(&[json]).map_err(|err| err.into()).map(Message::Text)
+                            },
+                            ServerboundMessage::Binary(binary) => {
+                                if binary.id != -1 {
+                                    debug!("[pub {}] set to {} at {:?}", binary.id, binary.data, binary.timestamp);
+                                };
+                                rmp_serde::to_vec(binary).map_err(|err| err.into()).map(Message::Binary)
+                            },
+                            ServerboundMessage::Ping => Ok(Message::Ping(Vec::new())),
+                        };
+                        match packet {
+                            Ok(packet) => {
+                                if !matches!(packet, Message::Ping(_)) { trace!("sent message: {packet:?}"); };
+                                if write.send(packet).await.is_err() { return Err(SendMessageError::ConnectionClosed(ConnectionClosedError)); };
+                            },
+                            Err(err) => return Err(err),
+                        };
                     },
-                    Err(err) => return Err(err),
+                    Err(broadcast::error::RecvError::Closed) => return Err(SendMessageError::ConnectionClosed(ConnectionClosedError)),
+                    Err(broadcast::error::RecvError::Lagged(amount)) => warn!("server writer lagged {amount}!"),
                 };
-            };
-            Ok(())
+            }
         })
     }
 
@@ -334,10 +354,16 @@ impl Client {
                     for data in data_frame {
                         match &data {
                             ClientboundData::Text(ClientboundTextData::Announce(announce)) => {
+                                if let Some(pubuid) = announce.pubuid {
+                                    debug!("[pub {pubuid}] publishing {:?}s to `{}` with {:?}", announce.r#type, announce.name, announce.properties);
+                                } else {
+                                    debug!("[topic {}] announced, type {:?} with {:?}", announce.name, announce.r#type, announce.properties);
+                                }
                                 let mut announced_topics = announced_topics.write().await;
                                 announced_topics.insert(announce);
                             },
                             ClientboundData::Text(ClientboundTextData::Unannounce(unannounce)) => {
+                                debug!("[topic {}] unannounced", unannounce.name);
                                 let mut announced_topics = announced_topics.write().await;
                                 announced_topics.remove(unannounce);
                             },
@@ -366,10 +392,16 @@ impl Client {
                                             properties.extra.remove(key);
                                         },
                                     };
+                                };
+                                debug!("[topic {name}] updated properties to {:?}", properties);
+                            },
+                            ClientboundData::Binary(BinaryData { id, timestamp, data, .. }) => {
+                                let announced_topics = announced_topics.read().await;
+                                if let Some(topic) = announced_topics.get_from_id(*id) {
+                                    debug!("[topic {}] updated to {data} at {timestamp:?}", topic.name());
                                 }
-                            }
-                            _ => {},
-                        }
+                            },
+                        };
 
                         client_sender.send(data.into()).map_err(|_| ConnectionClosedError)?;
                     }

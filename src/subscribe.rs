@@ -43,7 +43,6 @@ use std::{collections::{HashMap, HashSet}, fmt::Debug, sync::Arc};
 
 use futures_util::future::join_all;
 use tokio::sync::{broadcast, RwLock};
-use tracing::debug;
 
 use crate::{data::{BinaryData, ClientboundData, ClientboundTextData, PropertiesData, ServerboundMessage, ServerboundTextData, Subscribe, SubscriptionOptions, Unsubscribe}, recv_until_async, topic::{AnnouncedTopic, AnnouncedTopics}, NTClientReceiver, NTServerSender};
 
@@ -95,8 +94,6 @@ impl Subscriber {
     ) -> Self {
         let id = rand::random();
 
-        debug!("[sub {id}] subscribed to `{topics:?}`");
-
         let topic_ids = {
             let announced_topics = announced_topics.read().await;
             announced_topics.id_values()
@@ -144,7 +141,6 @@ impl Subscriber {
         recv_until_async(&mut self.ws_recv, |data| {
             let topic_ids = self.topic_ids.clone();
             let announced_topics = self.announced_topics.clone();
-            let sub_id = self.id;
             let topics = &self.topics;
             let options = &self.options;
             async move {
@@ -163,20 +159,17 @@ impl Subscriber {
 
                             topic.clone()
                         };
-                        debug!("[sub {sub_id}] topic {} updated to {data}", announced_topic.name());
                         Some(ReceivedMessage::Updated((announced_topic, data.clone())))
                     },
                     ClientboundData::Text(ClientboundTextData::Announce(ref announce)) => {
                         let matches = announced_topics.read().await.get_from_id(announce.id).is_some_and(|topic| topic.matches(topics, options));
                         if matches {
-                            debug!("[sub {sub_id}] topic {} announced", announce.name);
                             topic_ids.write().await.insert(announce.id);
                             Some(ReceivedMessage::Announced(announce.into()))
                         } else { None }
                     },
                     ClientboundData::Text(ClientboundTextData::Unannounce(ref unannounce)) => {
                         topic_ids.write().await.remove(&unannounce.id).then(|| {
-                            debug!("[sub {sub_id}] topic {} unannounced", unannounce.name);
                             ReceivedMessage::Unannounced { name: unannounce.name.clone(), id: unannounce.id }
                         })
                     },
@@ -189,7 +182,6 @@ impl Subscriber {
 
                         let topics = announced_topics.read().await;
                         let topic = topics.get_from_id(id).expect("topic exists").clone();
-                        debug!("[sub {sub_id}] topic {} updated properties to {:?}", topic.name(), topic.properties());
                         Some(ReceivedMessage::UpdateProperties(topic))
                     },
                 }
@@ -203,7 +195,6 @@ impl Drop for Subscriber {
         let unsub_message = ServerboundTextData::Unsubscribe(Unsubscribe { subuid: self.id });
         // if the receiver is dropped, the ws connection is closed
         let _ = self.ws_sender.send(ServerboundMessage::Text(unsub_message).into());
-        debug!("[sub {}] unsubscribed", self.id);
     }
 }
 

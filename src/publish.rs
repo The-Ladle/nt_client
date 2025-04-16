@@ -36,7 +36,6 @@
 use std::{collections::HashMap, fmt::Debug, marker::PhantomData, sync::Arc, time::Duration};
 
 use tokio::sync::{broadcast, RwLock};
-use tracing::debug;
 
 use crate::{data::{r#type::{DataType, NetworkTableData}, Announce, BinaryData, ClientboundData, ClientboundTextData, Properties, PropertiesData, Publish, ServerboundMessage, ServerboundTextData, SetProperties, Unpublish}, error::ConnectionClosedError, recv_until, NTClientReceiver, NTServerSender, NetworkTablesTime};
 
@@ -186,7 +185,6 @@ impl<T: NetworkTableData> Publisher<T> {
         let data_value = data.clone().into_value();
         let binary = BinaryData::new(self.id, timestamp, data);
         self.ws_sender.send(ServerboundMessage::Binary(binary).into()).map_err(|_| ConnectionClosedError)?;
-        debug!("[pub {}] set to {data_value} at time {timestamp:?}", self.id);
         Ok(())
     }
 }
@@ -196,7 +194,6 @@ impl<T: NetworkTableData> Drop for Publisher<T> {
         let data = ServerboundTextData::Unpublish(Unpublish { pubuid: self.id });
         // if the receiver is dropped, the ws connection is closed
         let _ = self.ws_sender.send(ServerboundMessage::Text(data).into());
-        debug!("[pub {}] unpublished", self.id);
     }
 }
 
