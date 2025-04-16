@@ -48,9 +48,37 @@ macro_rules! path {
 /// This differs from an [`AnnouncedTopic`], as that is a **server created topic**, while this is a
 /// **client created topic**.
 ///
-/// The intended method to obtain one of these is to use the [`Client::topic`] method.
+/// # Examples
+/// ```no_run
+/// use nt_client::{Client, path};
 ///
-/// [`Client::topic`]: crate::Client::topic
+/// # tokio_test::block_on(async {
+/// let client = Client::new(Default::default());
+///
+/// client.connect_setup(|client| {
+///     // get a topic named `/my/topic` using the path! macro
+///     let mut topic = client.topic(path!["my", "topic"]);
+///     tokio::spawn(async move {
+///         // subscribe to `/mytopic`
+///         // note that this immediately unsubscribes and doesn't actually do anything
+///         topic.subscribe(Default::default()).await;
+///
+///         // mutate the topic, changing its name to `/mytopic`
+///         // this is useful when you don't have access to a Client and need to dynamically
+///         // "create" topics
+///         //
+///         // to see a better example of this, look at the `generic_pub` example
+///         // the subscriber created previously, assuming it isn't immediately dropped,
+///         // will still be subscribing to `/mytopic`
+///         *topic.name_mut() = "/othertopic".to_owned();
+///
+///         // subscribe to `/othertopic`
+///         // note that this immediately unsubscribes and doesn't actually do anything
+///         topic.subscribe(Default::default()).await;
+///     });
+/// }).await.unwrap();
+/// # });
+/// ```
 #[derive(Clone)]
 pub struct Topic {
     name: String,
@@ -194,7 +222,7 @@ impl AnnouncedTopic {
         self.value = Some((value, when));
     }
 
-    /// Returns whether the given topic names and subscription options match this topic.
+    /// Returns whether the given names and subscription options match this topic.
     pub fn matches(&self, names: &[String], options: &SubscriptionOptions) -> bool {
         names.iter()
             .any(|name| &self.name == name || (options.prefix.is_some_and(|flag| flag) && self.name.starts_with(name)))
