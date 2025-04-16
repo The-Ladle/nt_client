@@ -20,7 +20,6 @@ This is meant to be used within coprocessors that can send and receive data from
 - [x] Examples
 - [x] Better error handling (less `.expect`)
 - [x] Reconnections
-- [ ] Caching
 
 ## Installation
 Add the following dependency to your `Cargo.toml`
