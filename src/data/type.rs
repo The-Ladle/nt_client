@@ -222,12 +222,12 @@ impl DataType {
 }
 
 /// A piece of data that can be sent and received by a `NetworkTables` server.
-pub trait NetworkTableData: Clone {
+pub trait NetworkTableData {
     /// Returns the `DataType` that this piece of data is.
     fn data_type() -> DataType;
 
     /// Creates a new piece of data from a generic `MessagePack` value.
-    fn from_value(value: &rmpv::Value) -> Option<Self>;
+    fn from_value(value: &rmpv::Value) -> Option<Self> where Self: Sized;
 
     /// Converts this into a generic `MessagePack` value.
     fn into_value(self) -> rmpv::Value;
