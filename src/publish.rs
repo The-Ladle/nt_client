@@ -250,8 +250,6 @@ impl GenericPublisher {
         let (name, server_type, id) = {
             recv_until(&mut ws_recv, |data| {
                 if let ClientboundData::Text(ClientboundTextData::Announce(Announce { ref name, ref r#type, pubuid: Some(pubuid), .. })) = *data {
-                    // TODO: cached property
-
                     Some((name.clone(), *r#type, pubuid))
                 } else {
                     None

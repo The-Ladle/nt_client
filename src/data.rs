@@ -7,7 +7,6 @@ use serde::{de::Visitor, ser::Error, Deserialize, Deserializer, Serialize, Seria
 
 pub mod r#type;
 
-// TODO: be able to send multiple messages at once
 #[derive(Debug)]
 pub(crate) enum ServerboundMessage {
     Text(ServerboundTextData),

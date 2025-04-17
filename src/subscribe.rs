@@ -202,7 +202,6 @@ impl Drop for Subscriber {
 }
 
 /// Messages that can received from a subscriber.
-// TODO: no clones on AnnouncedTopic
 #[derive(Debug, Clone, PartialEq)]
 pub enum ReceivedMessage {
     /// A topic that matches the subscription options and subscribed topics was announced.
