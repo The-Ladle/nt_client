@@ -155,7 +155,10 @@ impl Subscriber {
                             let topic = topics.get_mut_from_id(id).expect("announced topic before sending updates");
 
                             if topic.last_updated().is_some_and(|last_timestamp| last_timestamp > timestamp) { return None; };
-                            topic.update(data.clone(), *timestamp);
+                            topic.update(*timestamp);
+                            if topic.properties().cached.is_some_and(|cached| cached) {
+                                topic.update_value(data.clone());
+                            };
 
                             topic.clone()
                         };

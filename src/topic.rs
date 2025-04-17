@@ -182,7 +182,8 @@ pub struct AnnouncedTopic {
     id: i32,
     r#type: DataType,
     pub(crate) properties: Properties,
-    value: Option<(rmpv::Value, Duration)>,
+    value: Option<rmpv::Value>,
+    last_updated: Option<Duration>,
 }
 
 impl AnnouncedTopic {
@@ -209,17 +210,26 @@ impl AnnouncedTopic {
     }
 
     /// Returns the current value of this topic.
+    ///
+    /// This value will not be present if the `cached` property is `false`, regardless of if this
+    /// topic has been published to.
     pub fn value(&self) -> Option<&rmpv::Value> {
-        self.value.as_ref().map(|value| &value.0)
+        self.value.as_ref()
     }
 
     /// Returns when this topic was last updated as a duration of time since the server started.
+    ///
+    /// This value will not be present if it has never been published to.
     pub fn last_updated(&self) -> Option<&Duration> {
-        self.value.as_ref().map(|value| &value.1)
+        self.last_updated.as_ref()
     }
 
-    pub(crate) fn update(&mut self, value: rmpv::Value, when: Duration) {
-        self.value = Some((value, when));
+    pub(crate) fn update(&mut self, when: Duration) {
+        self.last_updated = Some(when);
+    }
+
+    pub(crate) fn update_value(&mut self, value: rmpv::Value) {
+        self.value = Some(value);
     }
 
     /// Returns whether the given names and subscription options match this topic.
@@ -237,6 +247,7 @@ impl From<&Announce> for AnnouncedTopic {
             r#type: value.r#type,
             properties: value.properties.clone(),
             value: None,
+            last_updated: None,
         }
     }
 }
