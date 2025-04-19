@@ -11,7 +11,7 @@ async fn main() {
         // subscribes to topic `/value`
         let sub_topic = client.topic("/value");
         let sub_task = tokio::spawn(async move {
-            let mut subscriber = sub_topic.subscribe(Default::default()).await;
+            let mut subscriber = sub_topic.subscribe(Default::default()).await.unwrap();
 
             loop {
                 match subscriber.recv().await {

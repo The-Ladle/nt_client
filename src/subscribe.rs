@@ -18,7 +18,7 @@
 //!     let counter_topic = client.topic("/counter");
 //!     tokio::spawn(async move {
 //!         // subscribes to the `/counter`
-//!         let mut subscriber = counter_topic.subscribe(Default::default()).await;
+//!         let mut subscriber = counter_topic.subscribe(Default::default()).await.unwrap();
 //!
 //!         loop {
 //!             match subscriber.recv().await {
@@ -43,8 +43,9 @@ use std::{collections::{HashMap, HashSet}, fmt::Debug, sync::Arc};
 
 use futures_util::future::join_all;
 use tokio::sync::{broadcast, RwLock};
+use tracing::warn;
 
-use crate::{data::{BinaryData, ClientboundData, ClientboundTextData, PropertiesData, ServerboundMessage, ServerboundTextData, Subscribe, SubscriptionOptions, Unsubscribe}, recv_until_async, topic::{AnnouncedTopic, AnnouncedTopics}, NTClientReceiver, NTServerSender};
+use crate::{data::{BinaryData, ClientboundData, ClientboundTextData, PropertiesData, ServerboundMessage, ServerboundTextData, Subscribe, SubscriptionOptions, Unsubscribe}, error::ConnectionClosedError, recv_until_async, topic::{AnnouncedTopic, AnnouncedTopics}, NTClientReceiver, NTServerSender};
 
 /// A `NetworkTables` subscriber that subscribes to a [`Topic`].
 ///
@@ -91,7 +92,7 @@ impl Subscriber {
         announced_topics: Arc<RwLock<AnnouncedTopics>>,
         ws_sender: NTServerSender,
         ws_recv: NTClientReceiver,
-    ) -> Self {
+    ) -> Result<Self, ConnectionClosedError> {
         let id = rand::random();
 
         let topic_ids = {
@@ -103,9 +104,9 @@ impl Subscriber {
         };
 
         let sub_message = ServerboundTextData::Subscribe(Subscribe { topics: topics.clone(), subuid: id, options: options.clone() });
-        ws_sender.send(ServerboundMessage::Text(sub_message).into()).expect("receivers exist");
+        ws_sender.send(ServerboundMessage::Text(sub_message).into()).map_err(|_| ConnectionClosedError)?;
 
-        Self {
+        Ok(Self {
             topics,
             id,
             options,
@@ -113,7 +114,7 @@ impl Subscriber {
             announced_topics,
             ws_sender,
             ws_recv
-        }
+        })
     }
 
     /// Returns all topics that this subscriber is subscribed to.
@@ -152,7 +153,10 @@ impl Subscriber {
                         if !contains { return None; };
                         let announced_topic = {
                             let mut topics = announced_topics.write().await;
-                            let topic = topics.get_mut_from_id(id).expect("announced topic before sending updates");
+                            let Some(topic) = topics.get_mut_from_id(id) else {
+                                warn!("unknown topic with id {id}");
+                                return None;
+                            };
 
                             if topic.last_updated().is_some_and(|last_timestamp| last_timestamp > timestamp) { return None; };
                             topic.update(*timestamp);
@@ -178,7 +182,10 @@ impl Subscriber {
                     },
                     ClientboundData::Text(ClientboundTextData::Properties(PropertiesData { ref name, .. })) => {
                         let (contains, id) = {
-                            let id = announced_topics.read().await.get_id(name).expect("announced before properties");
+                            let Some(id) = announced_topics.read().await.get_id(name) else {
+                                warn!("unknown topic {name}");
+                                return None;
+                            };
                             (topic_ids.read().await.contains(&id), id)
                         };
                         if !contains { return None; };

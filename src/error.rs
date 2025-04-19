@@ -101,14 +101,6 @@ pub enum ReceiveMessageError {
     /// Normally, this should never happen and may turn into a panic in the future.
     #[error(transparent)]
     ConnectionClosed(#[from] ConnectionClosedError),
-
-    /// A JSON text message failed to deserialize into data.
-    #[error(transparent)]
-    FailedDeserializingJson(#[from] serde_json::Error),
-
-    /// A MessagePack binary message failed to deserialize into data.
-    #[error(transparent)]
-    FailedDeserializingMsgPack(#[from] rmp_serde::decode::Error),
 }
 
 /// Errors that can occur when converting an [`NTAddr`] to an [`Ipv4Addr`]

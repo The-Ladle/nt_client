@@ -22,7 +22,7 @@ fn setup(client: &Client) {
 
     tokio::spawn(async move {
         // subscribe to `/topic1`, `/topic2`, and `/topic3`
-        let mut sub = topics.subscribe(Default::default()).await;
+        let mut sub = topics.subscribe(Default::default()).await.unwrap();
 
         loop {
             match sub.recv().await {

@@ -6,7 +6,7 @@ use std::{collections::{HashMap, VecDeque}, fmt::{Debug, Display}, sync::Arc, ti
 
 use tokio::sync::RwLock;
 
-use crate::{data::{r#type::{DataType, NetworkTableData}, Announce, Properties, SubscriptionOptions, Unannounce}, publish::{GenericPublisher, NewPublisherError, Publisher}, subscribe::Subscriber, NTClientSender, NTServerSender, NetworkTablesTime};
+use crate::{data::{r#type::{DataType, NetworkTableData}, Announce, Properties, SubscriptionOptions, Unannounce}, error::ConnectionClosedError, publish::{GenericPublisher, NewPublisherError, Publisher}, subscribe::Subscriber, NTClientSender, NTServerSender, NetworkTablesTime};
 
 pub mod collection;
 
@@ -165,7 +165,7 @@ impl Topic {
     /// This method does not require the [`Client`] websocket connection to be made.
     ///
     /// [`Client`]: crate::Client
-    pub async fn subscribe(&self, options: SubscriptionOptions) -> Subscriber {
+    pub async fn subscribe(&self, options: SubscriptionOptions) -> Result<Subscriber, ConnectionClosedError> {
         Subscriber::new(vec![self.name.clone()], options, self.announced_topics.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
     }
 }
@@ -382,7 +382,7 @@ impl AnnouncedTopics {
 ///             topics_only: Some(true),
 ///             prefix: Some(true),
 ///             ..Default::default()
-///         }).await;
+///         }).await.unwrap();
 ///
 ///         while let Ok(ReceivedMessage::Announced(topic)) = sub.recv().await {
 ///             let path: TopicPath = topic.name().into();

@@ -4,7 +4,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use tokio::sync::RwLock;
 
-use crate::{data::SubscriptionOptions, subscribe::Subscriber, NTClientSender, NTServerSender, NetworkTablesTime};
+use crate::{data::SubscriptionOptions, error::ConnectionClosedError, subscribe::Subscriber, NTClientSender, NTServerSender, NetworkTablesTime};
 
 use super::{AnnouncedTopics, Topic};
 
@@ -93,7 +93,7 @@ impl TopicCollection {
     /// This method does not require the [`Client`] websocket connection to be made.
     ///
     /// [`Client`]: crate::Client
-    pub async fn subscribe(&self, options: SubscriptionOptions) -> Subscriber {
+    pub async fn subscribe(&self, options: SubscriptionOptions) -> Result<Subscriber, ConnectionClosedError> {
         Subscriber::new(self.names.clone(), options, self.announced_topics.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
     }
 }

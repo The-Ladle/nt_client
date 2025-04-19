@@ -43,7 +43,7 @@ fn setup(client: &Client, cancel_send: broadcast::Sender<()>) {
         // subscribe to a topic to be able to publish
         // this is a bug within NetworkTables, see https://github.com/wpilibsuite/allwpilib/issues/7680
         let sub_task = tokio::spawn(async move {
-            let mut sub = sub_topic.subscribe(Default::default()).await;
+            let mut sub = sub_topic.subscribe(Default::default()).await.unwrap();
             loop {
                 let _ = sub.recv().await;
             };

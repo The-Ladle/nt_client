@@ -23,7 +23,7 @@
 //! fn setup(client: &Client) {
 //!     let thing_topic = client.topic("/thing");
 //!     tokio::spawn(async move {
-//!         let mut sub = thing_topic.subscribe(Default::default()).await;
+//!         let mut sub = thing_topic.subscribe(Default::default()).await.unwrap();
 //!
 //!         loop {
 //!             match sub.recv().await {
@@ -327,9 +327,16 @@ impl Client {
                         let mut binary = VecDeque::from(binary);
                         let mut binary_data = Vec::new();
                         while !binary.is_empty() {
-                            let binary = rmp_serde::from_read::<&mut VecDeque<u8>, BinaryData>(&mut binary)?;
+                            let Ok(binary) = rmp_serde::from_read::<&mut VecDeque<u8>, BinaryData>(&mut binary) else {
+                                warn!("malformed binary data");
+                                continue;
+                            };
                             if binary.id == -1 {
-                                let client_send_time = Duration::from_micros(binary.data.as_u64().expect("timestamp data is u64"));
+                                let Some(micros) = binary.data.as_u64() else {
+                                    warn!("malformed timestamp data");
+                                    continue;
+                                };
+                                let client_send_time = Duration::from_micros(micros);
                                 if update_time_sender.send((binary.timestamp, client_send_time)).await.is_err() {
                                     return Err(ReceiveMessageError::ConnectionClosed(ConnectionClosedError));
                                 };
@@ -339,7 +346,13 @@ impl Client {
                         Some(binary_data)
                     },
                     Message::Text(json) => {
-                        Some(serde_json::from_str::<'_, Vec<ClientboundTextData>>(&json)?.into_iter().map(ClientboundData::Text).collect())
+                        match serde_json::from_str::<'_, Vec<ClientboundTextData>>(&json) {
+                            Ok(text_data) => Some(text_data.into_iter().map(ClientboundData::Text).collect()),
+                            Err(_) => {
+                                warn!("malformed json data");
+                                None
+                            },
+                        }
                     },
                     Message::Pong(_) => {
                         pong_send.notify_one();
@@ -572,7 +585,7 @@ impl NetworkTablesTime {
 /// nt_client::reconnect(Default::default(), |client| async {
 ///     let topic = client.topic("/topic");
 ///     let sub_task = tokio::spawn(async move {
-///         let mut subscriber = topic.subscribe(Default::default()).await;
+///         let mut subscriber = topic.subscribe(Default::default()).await.unwrap();
 ///
 ///         loop {
 ///             match subscriber.recv().await {

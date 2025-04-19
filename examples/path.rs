@@ -19,7 +19,8 @@ fn setup(client: &Client) {
     // task that subscribes to that topic
     tokio::spawn(async move {
         // subscribes to that topic and only record topic announcements that have that prefix
-        let mut subscriber = sub_topic.subscribe(SubscriptionOptions { topics_only: Some(true), prefix: Some(true), ..Default::default() }).await;
+        let options = SubscriptionOptions { topics_only: Some(true), prefix: Some(true), ..Default::default() };
+        let mut subscriber = sub_topic.subscribe(options).await.unwrap();
 
         while let Ok(ReceivedMessage::Announced(topic)) = subscriber.recv().await {
             // turn the topic name into a TopicPath
