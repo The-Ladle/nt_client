@@ -113,6 +113,20 @@ impl<T: NetworkTableData> Publisher<T> {
         })
     }
 
+    #[cfg(feature = "publish_bypass")]
+    pub(super) async fn new_bypass(
+        name: String,
+        properties: Properties,
+        time: Arc<RwLock<NetworkTablesTime>>,
+        ws_sender: NTServerSender,
+        ws_recv: NTClientReceiver,
+    ) -> Result<Self, ConnectionClosedError> {
+        Ok(Self {
+            _phantom: PhantomData,
+            inner: GenericPublisher::new_bypass(name, properties, T::data_type(), time, ws_sender, ws_recv).await?,
+        })
+    }
+
     /// Returns the id of this publisher.
     pub fn id(&self) -> i32 {
         self.inner.id()
@@ -263,6 +277,25 @@ impl GenericPublisher {
             let _ = ws_sender.send(ServerboundMessage::Text(data).into());
             return Err(NewPublisherError::MismatchedType { server: server_type, client: r#type });
         };
+
+        Ok(Self { topic: name, id, r#type, time, ws_sender, ws_recv })
+    }
+
+    #[cfg(feature = "publish_bypass")]
+    pub(super) async fn new_bypass(
+        name: String,
+        properties: Properties,
+        r#type: DataType,
+        time: Arc<RwLock<NetworkTablesTime>>,
+        ws_sender: NTServerSender,
+        ws_recv: NTClientReceiver,
+    ) -> Result<Self, ConnectionClosedError> {
+        let id = rand::random();
+        let pub_message = ServerboundTextData::Publish(Publish { name: name.clone(), pubuid: id, r#type, properties });
+        ws_sender.send(ServerboundMessage::Text(pub_message).into()).map_err(|_| ConnectionClosedError)?;
+
+        // assume the publisher will be made within 0.1s
+        tokio::time::sleep(Duration::from_secs_f64(0.1)).await;
 
         Ok(Self { topic: name, id, r#type, time, ws_sender, ws_recv })
     }

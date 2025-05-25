@@ -12,6 +12,9 @@ categories = ["api-bindings"]
 name = "nt_client"
 path = "src/lib.rs"
 
+[features]
+publish_bypass = []
+
 [dependencies]
 futures-util = { version = "0.3.30", default-features = false, features = ["sink", "std"] }
 rand = "0.8.5"

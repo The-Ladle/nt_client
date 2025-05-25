@@ -141,9 +141,28 @@ impl Topic {
         Publisher::new(self.name.clone(), properties, self.time.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
     }
 
+    /// Publishes to this topic with the data type `T`, not waiting for an nnounce message from the
+    /// server. This is meant as a workaround to [issue #7680][https://github.com/wpilibsuite/allwpilib/issues/7680].
+    ///
+    /// Using this method does not guarantees that the topic has a matching type, nor does it
+    /// guarantee that the publisher was even able to be made. Use at your own risk!
+    ///
+    /// # Note
+    /// This method requires the [`Client`] websocket connection to already be made. Calling this
+    /// method wihout already connecting the [`Client`] will cause it to hang forever.
+    ///
+    /// # Errors
+    /// Returns an error if the `NetworkTables` connection was closed.
+    ///
+    /// [`Client`]: crate::Client
+    #[cfg(feature = "publish_bypass")]
+    pub async fn publish_bypass<T: NetworkTableData>(&self, properties: Properties) -> Result<Publisher<T>, ConnectionClosedError> {
+        Publisher::new_bypass(self.name.clone(), properties, self.time.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
+    }
+
     /// Publishes to this topic with some data type.
     ///
-    /// This behaves different from [`publish`][`Self::publish`], as that has a generic type and
+    /// This behaves differently from [`publish`][`Self::publish`], as that has a generic type and
     /// guarantees through type-safety that the client is publishing values that have the same type
     /// the server does for that topic. Extra care must be taken to ensure no type mismatches
     /// occur.
@@ -158,6 +177,30 @@ impl Topic {
     /// [`Client`]: crate::Client
     pub async fn generic_publish(&self, r#type: DataType, properties: Properties) -> Result<GenericPublisher, NewPublisherError> {
         GenericPublisher::new(self.name.clone(), properties, r#type, self.time.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
+    }
+
+    /// Publishes to this topic with some data type, not waiting for an nnounce message from the
+    /// server. This is meant as a workaround to [issue #7680][https://github.com/wpilibsuite/allwpilib/issues/7680].
+    ///
+    /// Using this method does not guarantees that the topic has a matching type, nor does it
+    /// guarantee that the publisher was even able to be made. Use at your own risk!
+    ///
+    /// This behaves differently from [`publish_bypass`][`Self::publish_bypass`], as that has a generic type and
+    /// guarantees through type-safety that the client is publishing values that have the same type
+    /// the server does for that topic. Extra care must be taken to ensure no type mismatches
+    /// occur.
+    ///
+    /// # Note
+    /// This method requires the [`Client`] websocket connection to already be made. Calling this
+    /// method wihout already connecting the [`Client`] will cause it to hang forever.
+    ///
+    /// # Errors
+    /// Returns an error if the `NetworkTables` connection was closed.
+    ///
+    /// [`Client`]: crate::Client
+    #[cfg(feature = "publish_bypass")]
+    pub async fn generic_publish_bypass(&self, r#type: DataType, properties: Properties) -> Result<GenericPublisher, ConnectionClosedError> {
+        GenericPublisher::new_bypass(self.name.clone(), properties, r#type, self.time.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
     }
 
     /// Subscribes to this topic.
