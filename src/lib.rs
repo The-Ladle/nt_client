@@ -40,8 +40,14 @@
 //!     });
 //! }
 //! ```
+//!
+//! # Feature flags
+//! - `publish_bypass`: adds bypass versions of [`Topic::publish`] and [`Topic::generic_publish`] that do not wait for a server response.
+//!                     This is to serve as a workaround to [issue #7680][issue #7680].
+//!                     Once that bug is fixed, this feature will likely be deprecated and/or removed.
 //! 
 //! [NetworkTables]: https://github.com/wpilibsuite/allwpilib/blob/main/ntcore/doc/networktables4.adoc
+//! [issue #7680]: https://github.com/wpilibsuite/allwpilib/issues/7680
 
 use core::panic;
 use std::{collections::VecDeque, convert::Into, error::Error, fmt::Debug, net::Ipv4Addr, sync::Arc, time::{Duration, Instant}};
