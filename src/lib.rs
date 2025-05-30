@@ -67,43 +67,44 @@ pub(crate) type NTServerReceiver = broadcast::Receiver<Arc<ServerboundMessage>>;
 pub(crate) type NTClientSender = broadcast::Sender<Arc<ClientboundData>>;
 pub(crate) type NTClientReceiver = broadcast::Receiver<Arc<ClientboundData>>;
 
-/// The client used to interact with a `NetworkTables` server.
-///
-/// When this goes out of scope, the websocket connection is closed and no attempts to reconnect
-/// will be made.
-pub struct Client {
-    addr: Ipv4Addr,
-    options: NewClientOptions,
-    time: Arc<RwLock<NetworkTablesTime>>,
-    announced_topics: Arc<RwLock<AnnouncedTopics>>,
+/// A cheaply-clonable handle to the client used to create topics.
+pub struct ClientHandle {
+    pub(crate) time: Arc<RwLock<NetworkTablesTime>>,
+    pub(crate) announced_topics: Arc<RwLock<AnnouncedTopics>>,
 
-    send_ws: (NTServerSender, NTServerReceiver),
-    recv_ws: (NTClientSender, NTClientReceiver),
+    pub(crate) send_ws: (NTServerSender, NTServerReceiver),
+    pub(crate) recv_ws: (NTClientSender, NTClientReceiver),
 }
 
-impl Debug for Client {
+impl Debug for ClientHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Client")
-            .field("options", &self.options)
-            .field("topics", &self.announced_topics)
+        f.debug_struct("ClientHandle")
+            .field("time", &self.time)
+            .field("announced_topics", &self.announced_topics)
             .finish()
     }
 }
 
-impl Client {
-    /// Creates a new `Client` with options.
-    ///
-    /// # Panics
-    /// Panics if the [`NTAddr::TeamNumber`] team number is greater than 25599.
-    pub fn new(options: NewClientOptions) -> Self {
-        let addr = match options.addr.clone().into_addr() {
-            Ok(addr) => addr,
-            Err(err) => panic!("{err}"),
-        };
+impl Clone for ClientHandle {
+    fn clone(&self) -> Self {
+        Self {
+            time: self.time.clone(),
+            announced_topics: self.announced_topics.clone(),
+            send_ws: (self.send_ws.0.clone(), self.send_ws.0.subscribe()),
+            recv_ws: (self.recv_ws.0.clone(), self.recv_ws.0.subscribe()),
+        }
+    }
+}
 
-        Client {
-            addr,
-            options,
+impl Default for ClientHandle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ClientHandle {
+    fn new() -> Self {
+        Self {
             time: Default::default(),
             announced_topics: Default::default(),
 
@@ -131,12 +132,93 @@ impl Client {
 
     /// Returns a new topic with a given name.
     pub fn topic(&self, name: impl ToString) -> Topic {
-        Topic::new(name.to_string(), self.time(), self.announced_topics.clone(), self.send_ws.0.clone(), self.recv_ws.0.clone())
+        Topic::new(name.to_string(), self.clone())
     }
 
     /// Returns a new collection of topics with the given names.
     pub fn topics(&self, names: Vec<String>) -> TopicCollection {
-        TopicCollection::new(names, self.time(), self.announced_topics.clone(), self.send_ws.0.clone(), self.recv_ws.0.clone())
+        TopicCollection::new(names, self.clone())
+    }
+}
+
+/// The client used to interact with a `NetworkTables` server.
+///
+/// When this goes out of scope, the websocket connection is closed and no attempts to reconnect
+/// will be made.
+pub struct Client {
+    addr: Ipv4Addr,
+    options: NewClientOptions,
+
+    handle: ClientHandle,
+}
+
+impl Debug for Client {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Client")
+            .field("addr", &self.addr)
+            .field("options", &self.options)
+            .field("handle", &self.handle)
+            .finish()
+    }
+}
+
+impl AsRef<ClientHandle> for Client {
+    fn as_ref(&self) -> &ClientHandle {
+        &self.handle
+    }
+}
+
+impl Client {
+    /// Creates a new `Client` with options.
+    ///
+    /// # Panics
+    /// Panics if the [`NTAddr::TeamNumber`] team number is greater than 25599.
+    pub fn new(options: NewClientOptions) -> Self {
+        let addr = match options.addr.clone().into_addr() {
+            Ok(addr) => addr,
+            Err(err) => panic!("{err}"),
+        };
+
+        Client {
+            addr,
+            options,
+
+            handle: Default::default(),
+        }
+    }
+
+    /// Returns the client handle.
+    ///
+    /// This can be cheaply cloned.
+    pub fn handle(&self) -> &ClientHandle {
+        &self.handle
+    }
+
+    /// Returns the current `NetworkTablesTime` for this client.
+    ///
+    /// This can safely be used asynchronously and across different threads.
+    pub fn time(&self) -> Arc<RwLock<NetworkTablesTime>> {
+        self.handle.time()
+    }
+
+    /// Returns an announced topic from its id.
+    pub async fn announced_topic_from_id(&self, id: i32) -> Option<AnnouncedTopic> {
+        self.handle.announced_topic_from_id(id).await
+    }
+
+    /// Returns an announced topic from its name.
+    pub async fn announced_topic_from_name(&self, name: &str) -> Option<AnnouncedTopic> {
+        self.handle.announced_topic_from_name(name).await
+    }
+
+    /// Returns a new topic with a given name.
+    pub fn topic(&self, name: impl ToString) -> Topic {
+        self.handle.topic(name)
+    }
+
+    /// Returns a new collection of topics with the given names.
+    pub fn topics(&self, names: Vec<String>) -> TopicCollection {
+        self.handle.topics(names)
     }
 
     /// Connects to the `NetworkTables` server.
@@ -170,18 +252,20 @@ impl Client {
 
         setup(&self);
 
+        let handle = self.handle;
+
         let (write, read) = ws_stream.split();
 
         let pong_notify_recv = Arc::new(Notify::new());
         let pong_notify_send = pong_notify_recv.clone();
-        let ping_task = Client::start_ping_task(pong_notify_recv, self.send_ws.0.clone(), self.options.ping_interval, self.options.response_timeout);
+        let ping_task = Client::start_ping_task(pong_notify_recv, handle.send_ws.0.clone(), self.options.ping_interval, self.options.response_timeout);
 
         let (update_time_sender, update_time_recv) = mpsc::channel(1);
-        let update_time_task = Client::start_update_time_task(self.options.update_time_interval, self.time(), self.send_ws.0.clone(), update_time_recv);
+        let update_time_task = Client::start_update_time_task(self.options.update_time_interval, handle.time(), handle.send_ws.0.clone(), update_time_recv);
 
-        let announced_topics = self.announced_topics.clone();
-        let write_task = Client::start_write_task(self.send_ws.1, write);
-        let read_task = Client::start_read_task(read, update_time_sender, pong_notify_send, announced_topics, self.recv_ws.0);
+        let announced_topics = handle.announced_topics.clone();
+        let write_task = Client::start_write_task(handle.send_ws.1, write);
+        let read_task = Client::start_read_task(read, update_time_sender, pong_notify_send, announced_topics, handle.recv_ws.0);
 
         let result = select! {
             task = ping_task => task?.map_err(|err| err.into()),

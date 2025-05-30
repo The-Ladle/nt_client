@@ -1,12 +1,10 @@
 //! Collection of topics that can be used to subscribe to multiple topics at once.
 
-use std::{fmt::Debug, sync::Arc};
+use std::fmt::Debug;
 
-use tokio::sync::RwLock;
+use crate::{data::SubscriptionOptions, error::ConnectionClosedError, subscribe::Subscriber, ClientHandle};
 
-use crate::{data::SubscriptionOptions, error::ConnectionClosedError, subscribe::Subscriber, NTClientSender, NTServerSender, NetworkTablesTime};
-
-use super::{AnnouncedTopics, Topic};
+use super::Topic;
 
 /// Represents a collection of topics.
 ///
@@ -33,13 +31,10 @@ use super::{AnnouncedTopics, Topic};
 ///     client.connect().await
 /// # });
 /// ```
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TopicCollection {
     names: Vec<String>,
-    time: Arc<RwLock<NetworkTablesTime>>,
-    announced_topics: Arc<RwLock<AnnouncedTopics>>,
-    send_ws: NTServerSender,
-    recv_ws: NTClientSender,
+    handle: ClientHandle,
 }
 
 impl IntoIterator for TopicCollection {
@@ -48,14 +43,6 @@ impl IntoIterator for TopicCollection {
 
     fn into_iter(self) -> Self::IntoIter {
         IntoIter::new(self)
-    }
-}
-
-impl Debug for TopicCollection {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TopicCollection")
-            .field("topics", &self.names)
-            .finish()
     }
 }
 
@@ -70,12 +57,9 @@ impl Eq for TopicCollection { }
 impl TopicCollection {
     pub(crate) fn new(
         names: Vec<String>,
-        time: Arc<RwLock<NetworkTablesTime>>,
-        announced_topics: Arc<RwLock<AnnouncedTopics>>,
-        send_ws: NTServerSender,
-        recv_ws: NTClientSender
+        handle: ClientHandle,
     ) -> Self {
-        Self { names, time, announced_topics, send_ws, recv_ws }
+        Self { names, handle }
     }
 
     /// Returns a slice of topic names this collection contains.
@@ -94,7 +78,7 @@ impl TopicCollection {
     ///
     /// [`Client`]: crate::Client
     pub async fn subscribe(&self, options: SubscriptionOptions) -> Result<Subscriber, ConnectionClosedError> {
-        Subscriber::new(self.names.clone(), options, self.announced_topics.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
+        Subscriber::new(self.names.clone(), options, self.handle.announced_topics.clone(), self.handle.send_ws.0.clone(), self.handle.recv_ws.0.subscribe()).await
     }
 }
 
@@ -113,11 +97,8 @@ impl Iterator for IntoIter {
         if collection.names.is_empty() { return None; };
 
         Some(Topic::new(
-                collection.names.remove(0),
-                collection.time.clone(),
-                collection.announced_topics.clone(),
-                collection.send_ws.clone(),
-                collection.recv_ws.clone(),
+            collection.names.remove(0),
+            collection.handle.clone(),
         ))
     }
 }

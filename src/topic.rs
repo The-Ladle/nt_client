@@ -2,11 +2,9 @@
 //!
 //! Topics have a fixed data type and can be subscribed and published to.
 
-use std::{collections::{HashMap, VecDeque}, fmt::{Debug, Display}, sync::Arc, time::Duration};
+use std::{collections::{HashMap, VecDeque}, fmt::{Debug, Display}, time::Duration};
 
-use tokio::sync::RwLock;
-
-use crate::{data::{r#type::{DataType, NetworkTableData}, Announce, Properties, SubscriptionOptions, Unannounce}, error::ConnectionClosedError, publish::{GenericPublisher, NewPublisherError, Publisher}, subscribe::Subscriber, NTClientSender, NTServerSender, NetworkTablesTime};
+use crate::{data::{r#type::{DataType, NetworkTableData}, Announce, Properties, SubscriptionOptions, Unannounce}, error::ConnectionClosedError, publish::{GenericPublisher, NewPublisherError, Publisher}, subscribe::Subscriber, ClientHandle};
 
 pub mod collection;
 
@@ -79,21 +77,10 @@ macro_rules! path {
 /// }).await.unwrap();
 /// # });
 /// ```
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Topic {
     name: String,
-    time: Arc<RwLock<NetworkTablesTime>>,
-    announced_topics: Arc<RwLock<AnnouncedTopics>>,
-    send_ws: NTServerSender,
-    recv_ws: NTClientSender,
-}
-
-impl Debug for Topic {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Topic")
-            .field("name", &self.name)
-            .finish()
-    }
+    handle: ClientHandle,
 }
 
 impl PartialEq for Topic {
@@ -107,12 +94,9 @@ impl Eq for Topic { }
 impl Topic {
     pub(super) fn new(
         name: String,
-        time: Arc<RwLock<NetworkTablesTime>>,
-        announced_topics: Arc<RwLock<AnnouncedTopics>>,
-        send_ws: NTServerSender,
-        recv_ws: NTClientSender,
+        handle: ClientHandle
     ) -> Self {
-        Self { name, time, announced_topics, send_ws, recv_ws }
+        Self { name, handle }
     }
 
     /// Returns a reference to the name this topic has.
@@ -138,7 +122,7 @@ impl Topic {
     ///
     /// [`Client`]: crate::Client
     pub async fn publish<T: NetworkTableData>(&self, properties: Properties) -> Result<Publisher<T>, NewPublisherError> {
-        Publisher::new(self.name.clone(), properties, self.time.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
+        Publisher::new(self.name.clone(), properties, self.handle.time(), self.handle.send_ws.0.clone(), self.handle.recv_ws.0.subscribe()).await
     }
 
     /// Publishes to this topic with the data type `T`, not waiting for an nnounce message from the
@@ -157,7 +141,7 @@ impl Topic {
     /// [`Client`]: crate::Client
     #[cfg(feature = "publish_bypass")]
     pub async fn publish_bypass<T: NetworkTableData>(&self, properties: Properties) -> Result<Publisher<T>, ConnectionClosedError> {
-        Publisher::new_bypass(self.name.clone(), properties, self.time.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
+        Publisher::new_bypass(self.name.clone(), properties, self.handle.time(), self.handle.send_ws.0.clone(), self.handle.recv_ws.0.subscribe()).await
     }
 
     /// Publishes to this topic with some data type.
@@ -176,7 +160,7 @@ impl Topic {
     ///
     /// [`Client`]: crate::Client
     pub async fn generic_publish(&self, r#type: DataType, properties: Properties) -> Result<GenericPublisher, NewPublisherError> {
-        GenericPublisher::new(self.name.clone(), properties, r#type, self.time.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
+        GenericPublisher::new(self.name.clone(), properties, r#type, self.handle.time(), self.handle.send_ws.0.clone(), self.handle.recv_ws.0.subscribe()).await
     }
 
     /// Publishes to this topic with some data type, not waiting for an nnounce message from the
@@ -200,7 +184,7 @@ impl Topic {
     /// [`Client`]: crate::Client
     #[cfg(feature = "publish_bypass")]
     pub async fn generic_publish_bypass(&self, r#type: DataType, properties: Properties) -> Result<GenericPublisher, ConnectionClosedError> {
-        GenericPublisher::new_bypass(self.name.clone(), properties, r#type, self.time.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
+        GenericPublisher::new_bypass(self.name.clone(), properties, r#type, self.handle.time(), self.handle.send_ws.0.clone(), self.handle.recv_ws.0.subscribe()).await
     }
 
     /// Subscribes to this topic.
@@ -209,7 +193,7 @@ impl Topic {
     ///
     /// [`Client`]: crate::Client
     pub async fn subscribe(&self, options: SubscriptionOptions) -> Result<Subscriber, ConnectionClosedError> {
-        Subscriber::new(vec![self.name.clone()], options, self.announced_topics.clone(), self.send_ws.clone(), self.recv_ws.subscribe()).await
+        Subscriber::new(vec![self.name.clone()], options, self.handle.announced_topics.clone(), self.handle.send_ws.0.clone(), self.handle.recv_ws.0.subscribe()).await
     }
 }
 

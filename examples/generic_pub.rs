@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, io::stdin};
 
-use nt_client::{data::r#type::DataType, publish::GenericPublisher, topic::Topic, Client};
+use nt_client::{data::r#type::DataType, publish::GenericPublisher, Client, ClientHandle};
 use tokio::{select, sync::{broadcast, mpsc}};
 use tracing::Level;
 
@@ -35,10 +35,10 @@ fn setup(client: &Client, cancel_send: broadcast::Sender<()>) {
     // this prevents publishers from unpublishing
     let mut publishers = HashMap::new();
 
-    // burner topic, we will mutate the name of this later to create publishers
-    let mut topic = client.topic("");
+    // client handle in order to create topics
+    let handle = client.handle().clone();
 
-    let sub_topic = client.topic("/tmp");
+    let sub_topic = handle.topic("/tmp");
     tokio::spawn(async move {
         // subscribe to a topic to be able to publish
         // this is a bug within NetworkTables, see https://github.com/wpilibsuite/allwpilib/issues/7680
@@ -90,7 +90,7 @@ fn setup(client: &Client, cancel_send: broadcast::Sender<()>) {
                         println!("  unpublishes <id>");
                     }
                     // publish a topic to the server
-                    "publish" => match publish_command(args, &mut topic, &mut publishers).await {
+                    "publish" => match publish_command(args, &handle, &mut publishers).await {
                         Ok(id) => println!("publishing with id {id}"),
                         Err(CommandError(err)) => eprintln!("{err}"),
                     }
@@ -126,7 +126,7 @@ fn setup(client: &Client, cancel_send: broadcast::Sender<()>) {
 // publish <type> <topic>
 async fn publish_command(
     args: &str,
-    topic: &mut Topic,
+    handle: &ClientHandle,
     publishers: &mut HashMap<i32, GenericPublisher>,
 ) -> Result<i32, CommandError> {
     let mut args = args.split_whitespace();
@@ -145,7 +145,7 @@ async fn publish_command(
         _ => return Err(CommandError(format!("unknown type {type}"))),
     };
 
-    *topic.name_mut() = topic_name;
+    let topic = handle.topic(topic_name);
     let publisher = topic.generic_publish(r#type, Default::default()).await?;
     let id = publisher.id();
     publishers.insert(id, publisher);
