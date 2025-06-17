@@ -570,7 +570,7 @@ impl Default for NewClientOptions {
 /// Represents an address that a `NetworkTables` client can connect to.
 ///
 /// By default, this is set to [`NTAddr::Local`].
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum NTAddr {
     /// Address corresponding to an FRC team number.
     ///
@@ -585,17 +585,12 @@ pub enum NTAddr {
     /// Local address (`127.0.0.1`).
     ///
     /// This should be used while in robot simulation mode.
+    #[default]
     Local,
     /// Custom address.
     ///
     /// This is useful when the server is running simulate on a separate machine.
     Custom(Ipv4Addr),
-}
-
-impl Default for NTAddr {
-    fn default() -> Self {
-        Self::Local
-    }
 }
 
 impl NTAddr {
