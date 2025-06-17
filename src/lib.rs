@@ -43,8 +43,8 @@
 //!
 //! # Feature flags
 //! - `publish_bypass`: adds bypass versions of [`Topic::publish`] and [`Topic::generic_publish`] that do not wait for a server response.
-//!                     This is to serve as a workaround to [issue #7680][issue #7680].
-//!                     Once that bug is fixed, this feature will likely be deprecated and/or removed.
+//!   This is to serve as a workaround to [issue #7680][issue #7680].
+//!   Once that bug is fixed, this feature will likely be deprecated and/or removed.
 //! 
 //! [NetworkTables]: https://github.com/wpilibsuite/allwpilib/blob/main/ntcore/doc/networktables4.adoc
 //! [issue #7680]: https://github.com/wpilibsuite/allwpilib/issues/7680
@@ -539,7 +539,7 @@ pub struct NewClientOptions {
     /// The timeout for a server response.
     ///
     /// If this timeout gets exceeded when a server response is expected, such as in PING requests,
-    /// the client will close the connection and attempt to reconnect.
+    /// the client will close the connection.
     ///
     /// Default is 1s.
     pub response_timeout: Duration,
