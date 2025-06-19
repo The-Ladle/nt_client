@@ -11,12 +11,16 @@ use super::Topic;
 /// This is used to subscribe to multiple topics at once.
 ///
 /// # Examples
-/// ```
+/// ```no_run
 /// use nt_client::Client;
 ///
 /// # tokio_test::block_on(async {
-///     let client = Client::new(Default::default());
+/// let client = Client::new(Default::default());
 ///
+/// client.connect_setup(setup).await.unwrap();
+/// # });
+///
+/// fn setup(client: &Client) {
 ///     let topics = client.topics(vec![
 ///         "/topic".to_owned(),
 ///         "/nested/topic".to_owned(),
@@ -27,9 +31,7 @@ use super::Topic;
 ///
 ///         // do something with subscriber...
 ///     });
-///
-///     client.connect().await
-/// # });
+/// }
 /// ```
 #[derive(Debug, Clone)]
 pub struct TopicCollection {
