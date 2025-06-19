@@ -1,6 +1,6 @@
 //! Collection of topics that can be used to subscribe to multiple topics at once.
 
-use std::fmt::Debug;
+use std::{fmt::Debug, iter::FusedIterator};
 
 use crate::{data::SubscriptionOptions, error::ConnectionClosedError, subscribe::Subscriber, ClientHandle};
 
@@ -86,27 +86,39 @@ impl TopicCollection {
 ///
 /// This is obtained by the [`TopicCollection::into_iter`] method.
 pub struct IntoIter {
-    collection: TopicCollection,
+    name_iter: std::vec::IntoIter<String>,
+    handle: ClientHandle,
 }
 
 impl Iterator for IntoIter {
     type Item = Topic;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let collection = &mut self.collection;
-        if collection.names.is_empty() { return None; };
-
-        Some(Topic::new(
-            collection.names.remove(0),
-            collection.handle.clone(),
-        ))
+        self.name_iter.next()
+            .map(|name| Topic::new(name, self.handle.clone()))
     }
 }
+
+impl DoubleEndedIterator for IntoIter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.name_iter.next_back()
+            .map(|name| Topic::new(name, self.handle.clone()))
+    }
+}
+
+impl ExactSizeIterator for IntoIter {
+    fn len(&self) -> usize {
+        self.name_iter.len()
+    }
+}
+
+impl FusedIterator for IntoIter { }
 
 impl IntoIter {
     pub(self) fn new(collection: TopicCollection) -> Self {
         IntoIter {
-            collection,
+            name_iter: collection.names.into_iter(),
+            handle: collection.handle,
         }
     }
 }
