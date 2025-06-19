@@ -117,6 +117,12 @@ impl Subscriber {
         })
     }
 
+    /// Unsubscribes from the topic(s).
+    ///
+    /// This behaves exactly the same as [std::mem::drop]ping this subscriber, since the destructor
+    /// for [`Subscriber`]s automatically unsubscribes.
+    pub fn unsubscribe(self) { }
+
     /// Returns all topics that this subscriber is subscribed to.
     pub async fn topics(&self) -> HashMap<i32, AnnouncedTopic> {
         let topic_ids = self.topic_ids.clone();

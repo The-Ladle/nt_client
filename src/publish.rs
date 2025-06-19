@@ -127,6 +127,12 @@ impl<T: NetworkTableData> Publisher<T> {
         })
     }
 
+    /// Unpublishes from this topic.
+    ///
+    /// This behaves exactly the same as [std::mem::drop]ping this publisher, since the destructor
+    /// for [`Publisher`]s automatically unpublishes.
+    pub fn unpublish(self) { }
+
     /// Returns the id of this publisher.
     pub fn id(&self) -> i32 {
         self.inner.id()
@@ -299,6 +305,12 @@ impl GenericPublisher {
 
         Ok(Self { topic: name, id, r#type, time, ws_sender, ws_recv })
     }
+
+    /// Unpublishes from this topic.
+    ///
+    /// This behaves exactly the same as [std::mem::drop]ping this publisher, since the destructor
+    /// for [`GenericPublisher`]s automatically unpublishes.
+    pub fn unpublish(self) { }
 
     /// Returns the id of this publisher.
     pub fn id(&self) -> i32 {
