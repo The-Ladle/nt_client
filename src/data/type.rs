@@ -176,8 +176,18 @@ impl DataType {
     ///
     /// Returns [`Option::None`] if no `DataType` could be found with that id.
     ///
-    /// It is guaranteed that the id mappings here match with the id mappings
-    /// in [`as_id`](Self::as_id).
+    /// Data type ids are as follows:
+    /// - `0`: [`Self::Boolean`]
+    /// - `1`: [`Self::Double`]
+    /// - `2`: [`Self::Int`]
+    /// - `3`: [`Self::Float`]
+    /// - `4`: [`Self::String`]
+    /// - `5`: [`Self::Raw`], [`Self::Rpc`], [`Self::Msgpack`], or [`Self::Protobuf`]
+    /// - `16`: [`Self::BooleanArray`]
+    /// - `17`: [`Self::DoubleArray`]
+    /// - `18`: [`Self::IntArray`]
+    /// - `19`: [`Self::FloatArray`]
+    /// - `20`: [`Self::StringArray`]
     pub fn from_id(id: u32) -> Option<Self> {
         use DataType as D;
 
@@ -200,8 +210,18 @@ impl DataType {
 
     /// Returns this `DataType` as an id.
     ///
-    /// It is guaranteed that the id mappings here match with the id mappings in
-    /// [`from_id`](Self::from_id).
+    /// Data type ids are as follows:
+    /// - [`Self::Boolean`] : `0`
+    /// - [`Self::Double`] : `1`
+    /// - [`Self::Int`] : `2`
+    /// - [`Self::Float`] : `3`
+    /// - [`Self::String`] or [`Self::Json`] : `4`
+    /// - [`Self::Raw`], [`Self::Rpc`], [`Self::Msgpack`], or [`Self::Protobuf`] : `5`,
+    /// - [`Self::BooleanArray`] : `16`
+    /// - [`Self::DoubleArray`] : `17`
+    /// - [`Self::IntArray`] : `18`
+    /// - [`Self::FloatArray`] : `19`
+    /// - [`Self::StringArray`] : `20`
     pub fn as_id(&self) -> u32 {
         use DataType as D;
 
