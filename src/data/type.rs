@@ -119,7 +119,7 @@ macro_rules! transparent {
 }
 
 /// A data type understood by a `NetworkTables` server.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum DataType {
     /// [`bool`] data type.
@@ -169,6 +169,10 @@ pub enum DataType {
     /// [`Vec<String>`] data type.
     #[serde(rename = "string[]")]
     StringArray,
+
+    /// An unknown data type.
+    #[serde(untagged)]
+    Unknown(String),
 }
 
 impl DataType {
@@ -222,6 +226,10 @@ impl DataType {
     /// - [`Self::IntArray`] : `18`
     /// - [`Self::FloatArray`] : `19`
     /// - [`Self::StringArray`] : `20`
+    ///
+    /// # Panics
+    ///
+    /// Panics if self is [`DataType::Unknown`].
     pub fn as_id(&self) -> u32 {
         use DataType as D;
 
@@ -237,6 +245,7 @@ impl DataType {
             D::IntArray => 18,
             D::FloatArray => 19,
             D::StringArray => 20,
+            D::Unknown(_) => panic!("unknown data type"),
         }
     }
 }

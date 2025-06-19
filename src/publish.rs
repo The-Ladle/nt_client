@@ -139,8 +139,8 @@ impl<T: NetworkTableData> Publisher<T> {
     }
 
     /// Returns the data type of the topic this publisher is publishing to.
-    pub fn data_type(&self) -> DataType {
-        self.inner.r#type
+    pub fn data_type(&self) -> &DataType {
+        &self.inner.r#type
     }
 
     /// Publish a new value to the [`Topic`].
@@ -264,13 +264,13 @@ impl GenericPublisher {
         mut ws_recv: NTClientReceiver,
     ) -> Result<Self, NewPublisherError> {
         let id = rand::random();
-        let pub_message = ServerboundTextData::Publish(Publish { name, pubuid: id, r#type, properties });
+        let pub_message = ServerboundTextData::Publish(Publish { name, pubuid: id, r#type: r#type.clone(), properties });
         ws_sender.send(ServerboundMessage::Text(pub_message).into()).map_err(|_| broadcast::error::RecvError::Closed)?;
 
         let (name, server_type, id) = {
             recv_until(&mut ws_recv, |data| {
                 if let ClientboundData::Text(ClientboundTextData::Announce(Announce { ref name, ref r#type, pubuid: Some(pubuid), .. })) = *data {
-                    Some((name.clone(), *r#type, pubuid))
+                    Some((name.clone(), r#type.clone(), pubuid))
                 } else {
                     None
                 }
@@ -297,7 +297,7 @@ impl GenericPublisher {
         ws_recv: NTClientReceiver,
     ) -> Result<Self, ConnectionClosedError> {
         let id = rand::random();
-        let pub_message = ServerboundTextData::Publish(Publish { name: name.clone(), pubuid: id, r#type, properties });
+        let pub_message = ServerboundTextData::Publish(Publish { name: name.clone(), pubuid: id, r#type: r#type.clone(), properties });
         ws_sender.send(ServerboundMessage::Text(pub_message).into()).map_err(|_| ConnectionClosedError)?;
 
         // assume the publisher will be made within 0.1s
@@ -318,8 +318,8 @@ impl GenericPublisher {
     }
 
     /// Returns the data type of the topic this publisher is publishing to.
-    pub fn data_type(&self) -> DataType {
-        self.r#type
+    pub fn data_type(&self) -> &DataType {
+        &self.r#type
     }
 
     /// Publish a new value to the [`Topic`].
@@ -408,7 +408,7 @@ impl GenericPublisher {
 
     async fn set_time<T: NetworkTableData>(&self, data: T, timestamp: Duration) -> Result<(), GenericPublishError> {
         if self.r#type != T::data_type() {
-            return Err(GenericPublishError::MismatchedType { server: self.r#type, client: T::data_type() });
+            return Err(GenericPublishError::MismatchedType { server: self.r#type.clone(), client: T::data_type() });
         };
 
         let binary = BinaryData::new(self.id, timestamp, data);
