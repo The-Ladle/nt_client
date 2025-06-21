@@ -443,7 +443,7 @@ impl Client {
                         match serde_json::from_str::<'_, Vec<ClientboundTextData>>(&json) {
                             Ok(text_data) => Some(text_data.into_iter().map(ClientboundData::Text).collect()),
                             Err(_) => {
-                                warn!("malformed json data");
+                                warn!("malformed json data: {json}");
                                 None
                             },
                         }
