@@ -549,7 +549,7 @@ impl UpdateProps {
     /// // properties are:
     /// // - persistent: `true`
     /// // - cached: `true`
-    /// // - retained: unset (defaults to `false`)
+    /// // - retained: None (defaults to `false`)
     /// let properties = Properties { persistent: Some(true), cached: Some(true), ..Default::default() };
     ///
     /// // update properties is:
@@ -590,7 +590,7 @@ impl UpdateProps {
     /// // properties are:
     /// // - persistent: `true`
     /// // - cached: `true`
-    /// // - retained: unset (defaults to `false`)
+    /// // - retained: None (defaults to `false`)
     /// let properties = Properties { persistent: Some(true), cached: Some(true), ..Default::default() };
     ///
     /// // update properties is:
