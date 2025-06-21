@@ -710,12 +710,16 @@ mod tests {
         }, &bytes);
     }
 
-    fn test_struct<S: StructData>(s: S, matches: &[u8]) {
+    fn test_struct<S>(s: S, matches: &[u8])
+    where S: StructData + std::clone::Clone + std::fmt::Debug + std::cmp::PartialEq
+    {
         let mut buf = ByteBuffer::new();
-        s.pack(&mut buf);
+        s.clone().pack(&mut buf);
 
         let bytes: Vec<u8> = buf.into();
         assert_eq!(&bytes, matches);
+
+        assert_eq!(S::unpack(&mut ByteReader::new(matches)), Some(s));
     }
 }
 
