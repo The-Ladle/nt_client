@@ -42,6 +42,7 @@
 //! ```
 //!
 //! # Feature flags
+//! - `struct`: adds support for struct parsing of common classes used in WPILib.
 //! - `publish_bypass`: adds bypass versions of [`Topic::publish`] and [`Topic::generic_publish`] that do not wait for a server response.
 //!   This is to serve as a workaround to [issue #7680][issue #7680].
 //!   Once that bug is fixed, this feature will likely be deprecated and/or removed.
@@ -66,6 +67,9 @@ pub mod data;
 pub mod topic;
 pub mod subscribe;
 pub mod publish;
+
+#[cfg(feature = "struct")]
+pub mod r#struct;
 
 pub(crate) type NTServerSender = broadcast::Sender<Arc<ServerboundMessage>>;
 pub(crate) type NTServerReceiver = broadcast::Receiver<Arc<ServerboundMessage>>;

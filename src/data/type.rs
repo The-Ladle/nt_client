@@ -170,6 +170,16 @@ pub enum DataType {
     #[serde(rename = "string[]")]
     StringArray,
 
+    /// Vec of custom binary `struct` data types.
+    #[cfg(feature = "struct")]
+    #[serde(untagged, serialize_with = "serialize_struct_array", deserialize_with = "deserialize_struct_array")]
+    StructArray(String),
+
+    /// Custom binary `struct` data type.
+    #[cfg(feature = "struct")]
+    #[serde(untagged, serialize_with = "serialize_struct", deserialize_with = "deserialize_struct")]
+    Struct(String),
+
     /// An unknown data type.
     #[serde(untagged)]
     Unknown(String),
@@ -220,7 +230,7 @@ impl DataType {
     /// - [`Self::Int`] : `2`
     /// - [`Self::Float`] : `3`
     /// - [`Self::String`] or [`Self::Json`] : `4`
-    /// - [`Self::Raw`], [`Self::Rpc`], [`Self::Msgpack`], or [`Self::Protobuf`] : `5`,
+    /// - [`Self::Raw`], [`Self::Rpc`], [`Self::Msgpack`], or [`Self::Protobuf`] : `5`
     /// - [`Self::BooleanArray`] : `16`
     /// - [`Self::DoubleArray`] : `17`
     /// - [`Self::IntArray`] : `18`
@@ -246,6 +256,9 @@ impl DataType {
             D::FloatArray => 19,
             D::StringArray => 20,
             D::Unknown(_) => panic!("unknown data type"),
+
+            #[cfg(feature = "struct")]
+            D::Struct(_) | D::StructArray(_) => 5,
         }
     }
 }
@@ -332,6 +345,74 @@ impl Visitor<'_> for DataTypeVisitor {
     where E: serde::de::Error
     {
         DataType::from_id(v.try_into().map_err(E::custom)?).ok_or(E::custom(format!("{v} is not a valid type id")))
+    }
+}
+
+#[cfg(feature = "struct")]
+fn serialize_struct<S>(type_name: &str, serializer: S) -> Result<S::Ok, S::Error>
+where S: Serializer
+{
+    serializer.serialize_str(&format!("struct:{type_name}"))
+}
+
+#[cfg(feature = "struct")]
+fn deserialize_struct<'de, D>(deserializer: D) -> Result<String, D::Error>
+where D: Deserializer<'de>
+{
+    deserializer.deserialize_identifier(StructDataVisitor)
+}
+
+#[cfg(feature = "struct")]
+struct StructDataVisitor;
+
+#[cfg(feature = "struct")]
+impl Visitor<'_> for StructDataVisitor {
+    type Value = String;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a valid struct type")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where E: serde::de::Error
+    {
+        let (left, right) = v.split_once(":").ok_or_else(|| serde::de::Error::custom("expected colon in struct type parsing"))?;
+        if left != "struct" { return Err(serde::de::Error::custom("expected struct type to be prefixed with `struct:`")); };
+        Ok(right.to_owned())
+    }
+}
+
+#[cfg(feature = "struct")]
+fn serialize_struct_array<S>(type_name: &str, serializer: S) -> Result<S::Ok, S::Error>
+where S: Serializer
+{
+    serializer.serialize_str(&format!("struct:{type_name}[]"))
+}
+
+#[cfg(feature = "struct")]
+fn deserialize_struct_array<'de, D>(deserializer: D) -> Result<String, D::Error>
+where D: Deserializer<'de>
+{
+    deserializer.deserialize_identifier(StructDataArrayVisitor)
+}
+
+#[cfg(feature = "struct")]
+struct StructDataArrayVisitor;
+
+#[cfg(feature = "struct")]
+impl Visitor<'_> for StructDataArrayVisitor {
+    type Value = String;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a valid struct type")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where E: serde::de::Error
+    {
+        let (left, right) = v.split_once(":").ok_or_else(|| serde::de::Error::custom("expected colon in struct type parsing"))?;
+        if left != "struct" { return Err(serde::de::Error::custom("expected struct type to be prefixed with `struct:`")); };
+        right.strip_suffix("[]").map(str::to_owned).ok_or_else(|| serde::de::Error::custom("expected array type to end with `[]`"))
     }
 }
 
