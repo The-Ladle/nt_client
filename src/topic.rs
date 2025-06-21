@@ -126,7 +126,7 @@ impl Topic {
     }
 
     /// Publishes to this topic with the data type `T`, not waiting for an nnounce message from the
-    /// server. This is meant as a workaround to [issue #7680][https://github.com/wpilibsuite/allwpilib/issues/7680].
+    /// server. This is meant as a workaround to [issue #7680].
     ///
     /// Using this method does not guarantees that the topic has a matching type, nor does it
     /// guarantee that the publisher was even able to be made. Use at your own risk!
@@ -139,6 +139,7 @@ impl Topic {
     /// Returns an error if the `NetworkTables` connection was closed.
     ///
     /// [`Client`]: crate::Client
+    /// [issue #7680]: https://github.com/wpilibsuite/allwpilib/issues/7680
     #[cfg(feature = "publish_bypass")]
     pub async fn publish_bypass<T: NetworkTableData>(&self, properties: Properties) -> Result<Publisher<T>, ConnectionClosedError> {
         Publisher::new_bypass(self.name.clone(), properties, self.handle.time(), self.handle.send_ws.0.clone(), self.handle.recv_ws.0.subscribe()).await
@@ -164,7 +165,7 @@ impl Topic {
     }
 
     /// Publishes to this topic with some data type, not waiting for an nnounce message from the
-    /// server. This is meant as a workaround to [issue #7680][https://github.com/wpilibsuite/allwpilib/issues/7680].
+    /// server. This is meant as a workaround to [issue #7680].
     ///
     /// Using this method does not guarantees that the topic has a matching type, nor does it
     /// guarantee that the publisher was even able to be made. Use at your own risk!
@@ -182,6 +183,7 @@ impl Topic {
     /// Returns an error if the `NetworkTables` connection was closed.
     ///
     /// [`Client`]: crate::Client
+    /// [issue #7680]: https://github.com/wpilibsuite/allwpilib/issues/7680
     #[cfg(feature = "publish_bypass")]
     pub async fn generic_publish_bypass(&self, r#type: DataType, properties: Properties) -> Result<GenericPublisher, ConnectionClosedError> {
         GenericPublisher::new_bypass(self.name.clone(), properties, r#type, self.handle.time(), self.handle.send_ws.0.clone(), self.handle.recv_ws.0.subscribe()).await
