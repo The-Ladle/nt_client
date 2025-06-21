@@ -86,6 +86,12 @@ impl From<ByteBuffer> for Vec<u8> {
     }
 }
 
+impl<const S: usize> From<[u8; S]> for ByteBuffer {
+    fn from(value: [u8; S]) -> Self {
+        Self { buf: value.into() }
+    }
+}
+
 impl ByteBuffer {
     /// Creates a new, empty `ByteBuffer`.
     pub fn new() -> Self {
