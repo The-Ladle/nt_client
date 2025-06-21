@@ -139,7 +139,6 @@ pub trait StructData {
     }
 
     /// Deserializes a fixed-size array of length `S` from `buf`.
-    // TODO: test this method
     fn unpack_array<const S: usize>(read: &mut ByteReader) -> Option<[Self; S]>
     where Self: Sized
     {
@@ -626,7 +625,77 @@ struct_data! {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use lazy_static::lazy_static;
+
     use super::*;
+
+    #[test]
+    fn test_unpack_arr() {
+        struct_data! {
+            struct MyStruct("") {
+                f: f64,
+                u: i32,
+            }
+        }
+
+        let bytes = [
+            0x71, 0x3D, 0x0A, 0xD7, 0xA3, 0x70, 0x20, 0x40, 0xEC, 0xFF, 0xFF, 0xFF, // 8.22, -20
+            0x85, 0xEB, 0x51, 0xB8, 0x1E, 0x85, 0xF3, 0xBF, 0x37, 0x00, 0x00, 0x00, // -1.22, 55
+        ];
+
+        let buf: ByteBuffer = bytes.into();
+
+        assert_eq!(MyStruct::unpack_array::<1>(&mut buf.read()), Some([MyStruct { f: 8.22, u: -20 }]));
+        assert_eq!(MyStruct::unpack_array::<2>(&mut buf.read()), Some([MyStruct { f: 8.22, u: -20 }, MyStruct { f: -1.22, u: 55 }]));
+        assert_eq!(MyStruct::unpack_array::<3>(&mut buf.read()), None);
+
+        const DATA_VALUE: i32 = 25;
+        lazy_static! {
+            static ref DATA: Arc<i32> = Arc::new(DATA_VALUE);
+        };
+
+        struct DropTest {
+            data: Arc<i32>,
+        }
+
+        impl StructData for DropTest {
+            fn type_name() -> String {
+                String::new()
+            }
+
+            fn pack(self, buf: &mut ByteBuffer) {
+                buf.write_i32(*self.data);
+            }
+
+            fn unpack(read: &mut ByteReader) -> Option<Self> {
+                // don't actually read any data since we're using "global" data
+                read.read_i32()?;
+                // if successful unpack, increment global Rc reference count
+                Some(Self { data: Arc::clone(&DATA) })
+            }
+        }
+
+        let bytes: [u8; 16] = [0; 16]; // 4 * size_of::<i32> bytes
+
+        let buf: ByteBuffer = bytes.into();
+
+        {
+            let arr = DropTest::unpack_array::<4>(&mut buf.read());
+            assert!(arr.is_some());
+            let arr = arr.unwrap();
+            assert!(arr.iter().all(|num| *num.data == DATA_VALUE));
+            assert!(arr.iter().all(|num| Arc::ptr_eq(&num.data, &DATA)));
+            assert_eq!(Arc::strong_count(&DATA), 5); // 1 + 4 drop tests unpacked
+        }
+
+        assert_eq!(Arc::strong_count(&DATA), 1); // arr is dropped
+
+        let arr = DropTest::unpack_array::<5>(&mut buf.read());
+        assert!(arr.is_none());
+        assert_eq!(Arc::strong_count(&DATA), 1); // failed unpacking, all should be dropped
+    }
 
     #[test]
     fn test_arm_ff() {
