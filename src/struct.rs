@@ -354,9 +354,69 @@ struct_data! {
     }
 }
 
-// TODO:
-// LinearSystem
-// Matrix
+/// Represents a plant defined using state-space notation.
+///
+/// A plant is a mathematical model of a system's dynamics.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LinearSystem<const S: usize, const I: usize, const O: usize> {
+    /// The system matrix A.
+    pub a: Matrix<S, S>,
+    /// The system matrix B.
+    pub b: Matrix<S, I>,
+    /// The system matrix C.
+    pub c: Matrix<O, S>,
+    /// The system matrix D.
+    pub d: Matrix<O, I>,
+}
+
+impl<const S: usize, const I: usize, const O: usize> StructData for LinearSystem<S, I, O,> {
+    fn type_name() -> String {
+        format!("LinearSystem__{}_{}_{}", S, I, O)
+    }
+
+    fn pack(self, buf: &mut ByteBuffer) {
+        self.a.pack(buf);
+        self.b.pack(buf);
+        self.c.pack(buf);
+        self.d.pack(buf);
+    }
+
+    fn unpack(read: &mut ByteReader) -> Option<Self> where Self: Sized {
+        let a = Matrix::unpack(read)?;
+        let b = Matrix::unpack(read)?;
+        let c = Matrix::unpack(read)?;
+        let d = Matrix::unpack(read)?;
+
+        Some(Self { a, b, c, d })
+    }
+}
+
+/// Represents a RxC matrix.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Matrix<const R: usize, const C: usize> {
+    /// The data of the matrix, indexed as `data[row][col]`.
+    pub data: [[f64; C]; R],
+}
+
+impl<const R: usize, const C: usize> StructData for Matrix<R, C> {
+    fn type_name() -> String {
+        format!("Matrix__{}_{}", R, C)
+    }
+
+    fn pack(self, buf: &mut ByteBuffer) {
+        self.data.into_iter().flatten().for_each(|value| {
+            buf.write_f64(value);
+        });
+    }
+
+    fn unpack(read: &mut ByteReader) -> Option<Self> {
+        let mut data = [[0.0; C]; R];
+        for value in data.iter_mut().flatten() {
+            *value = read.read_f64()?;
+        }
+        Some(Self { data })
+    }
+}
 
 struct_data! {
     /// Kinematics for a mecanum drive.
@@ -527,8 +587,27 @@ struct_data! {
     }
 }
 
-// TODO:
-// SwerveDriveKinematics
+/// Kinematics for a swerve drive with N modules.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SwerveDriveKinematics<const N: usize> {
+    /// The swerve module locations.
+    pub modules: [Translation2d; N],
+}
+
+impl<const N: usize> StructData for SwerveDriveKinematics<N> {
+    fn type_name() -> String {
+        format!("SwerveDriveKinematics__{}", N)
+    }
+
+    fn pack(self, buf: &mut ByteBuffer) {
+        Translation2d::pack_iter(self.modules, buf);
+    }
+
+    fn unpack(read: &mut ByteReader) -> Option<Self> {
+        let modules = Translation2d::unpack_array(read)?;
+        Some(Self { modules })
+    }
+}
 
 struct_data! {
     /// Represents the state of one swerve module.
@@ -622,8 +701,32 @@ struct_data! {
     }
 }
 
-// TODO:
-// Vector
+/// Represents an N-dimensional Vector.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Vector<const N: usize> {
+    /// The rows of the vector.
+    pub rows: [f64; N],
+}
+
+impl<const N: usize> StructData for Vector<N> {
+    fn type_name() -> String {
+        format!("Vector__{}", N)
+    }
+
+    fn pack(self, buf: &mut ByteBuffer) {
+        for value in self.rows {
+            buf.write_f64(value);
+        }
+    }
+
+    fn unpack(read: &mut ByteReader) -> Option<Self> {
+        let mut rows = [0.0; N];
+        for value in rows.iter_mut() {
+            *value = read.read_f64()?;
+        }
+        Some(Self { rows })
+    }
+}
 
 #[cfg(test)]
 mod tests {
