@@ -212,6 +212,7 @@ struct_data! {
 }
 
 /// Represents a hermite spline of degree 3.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CubicHermiteSpline {
     /// The control vector for the initial point in the x dimension.
     pub x_initial_control_vector: [f64; 2],
@@ -434,6 +435,7 @@ struct_data! {
 }
 
 /// Represents a hermite spline of degree 5.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct QuinticHermiteSplineStruct {
     /// The control vector for the initial point in the x dimension.
     pub x_initial: [f64; 3],
