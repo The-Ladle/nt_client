@@ -31,6 +31,14 @@ Or run the following command in your project root
 cargo add nt_client
 ```
 
+## Contributing
+
+Contributions are welcome! You can contribute by:
+
+- Creating an [issue](https://github.com/DatAsianBoi123/nt_client/issues/new)
+- [Forking](https://github.com/DatAsianBoi123/nt_client/fork) this repo
+- Creating a [pull request](https://github.com/DatAsianBoi123/nt_client/compare)
+
 ---
 See the `/examples` directory for examples on how to use this crate.
 
