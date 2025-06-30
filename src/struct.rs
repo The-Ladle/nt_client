@@ -185,7 +185,7 @@ impl<T: StructData> NetworkTableData for T {
 
 struct_data! {
     /// Feedforward constants that model a simple arm.
-    pub struct ArmFeedForward("ArmFeedforward") {
+    pub struct ArmFeedforward("ArmFeedforward") {
         /// The static gain in volts.
         k_s: f64,
         /// The gravity gain in volts.
@@ -448,7 +448,7 @@ struct_data! {
 
 struct_data! {
     /// Represents the wheel speeds for a mecanum drive drivetrain.
-    pub struct MecanumDriveWheelSpeedsStruct("MecanumDriveWheelSpeeds") {
+    pub struct MecanumDriveWheelSpeeds("MecanumDriveWheelSpeeds") {
         /// Speed of the front-left wheel in m/s.
         front_left: f64,
         /// Speed of the front-right wheel in m/s.
@@ -496,7 +496,7 @@ struct_data! {
 
 /// Represents a hermite spline of degree 5.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct QuinticHermiteSplineStruct {
+pub struct QuinticHermiteSpline {
     /// The control vector for the initial point in the x dimension.
     pub x_initial: [f64; 3],
     /// The control vector for the final point in the x dimension.
@@ -507,7 +507,7 @@ pub struct QuinticHermiteSplineStruct {
     pub y_final: [f64; 3],
 }
 
-impl StructData for QuinticHermiteSplineStruct {
+impl StructData for QuinticHermiteSpline {
     fn type_name() -> String {
         "QuinticHermiteSpline".to_owned()
     }
