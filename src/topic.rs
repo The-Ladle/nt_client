@@ -109,6 +109,11 @@ impl Topic {
         &mut self.name
     }
 
+    /// Creates a child topic
+    pub fn child(&self, name: &str) -> Self{
+        Self::new(self.name.clone() + name, self.handle.clone())
+    }
+
     /// Publishes to this topic with the data type `T`.
     ///
     /// For a generic-free version, see [`generic_publish`][`Self::generic_publish`].
